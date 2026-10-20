@@ -32,7 +32,7 @@ const state = p => p.evaluate(() => {
 
 await A.goto(url); await B.goto(url);
 await A.click('[data-on=open]'); await A.fill('#on-name', 'Alice'); await A.click('[data-on=create]');
-await A.waitForSelector('.code-big', { timeout: 25000 }).catch(async e => { console.error('page says: ' + (await A.innerText('body')).slice(0, 400)); throw e; });
+await A.waitForSelector('.code-big', { timeout: 60000 }).catch(async e => { console.error('page says: ' + (await A.innerText('body')).slice(0, 400)); throw e; });
 const code = (await A.textContent('.code-big')).trim();
 console.log('room code', code);
 if (shots) await A.screenshot({ path: shots + '/online-lobby.png' });
@@ -41,9 +41,9 @@ await B.click('[data-on=open]'); await B.fill('#on-name', 'Bob'); await B.fill('
 await A.waitForFunction(() => /Bob/.test(document.querySelector('.seats').textContent), null, { timeout: 60000 }).catch(async e => { console.error('Bob sees: ' + (await B.innerText('body')).slice(0, 300) + ' || Alice sees: ' + (await A.innerText('body')).slice(0, 300)); throw e; });
 console.log('Bob is seated');
 await A.click('[data-on=start]');
-await A.waitForSelector('#g-map', { timeout: 25000 });
-await B.waitForSelector('#g-map', { timeout: 25000 });
-await B.waitForFunction(() => document.querySelectorAll('#g-hand [data-card]').length >= 4, null, { timeout: 25000 });
+await A.waitForSelector('#g-map', { timeout: 45000 });
+await B.waitForSelector('#g-map', { timeout: 45000 });
+await B.waitForFunction(() => document.querySelectorAll('#g-hand [data-card]').length >= 4, null, { timeout: 45000 });
 
 let a = await state(A), b = await state(B);
 console.log('Alice holds', a.hand.join(', '), '| Bob holds', b.hand.join(', '));

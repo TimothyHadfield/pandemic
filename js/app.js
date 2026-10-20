@@ -45,7 +45,16 @@
   };
   let table = null;
   if (store.game && store.game.state) {
-    try { table = new LocalTable(store.game.state); ME = store.game.me || 0; table.view(); } catch (e) { table = null; store.game = null; save(); }
+    // a saved game must survive everything the game screen does with it, or it is dropped
+    try {
+      table = new LocalTable(store.game.state);
+      const n = store.game.state.n;
+      ME = Number.isInteger(store.game.me) && store.game.me >= 0 && store.game.me < n ? store.game.me : 0;
+      store.game.me = ME;
+      const v = table.view();
+      oddsFor(v); E.toAct(store.game.state); E.legalActions(planState(v));
+      if (!Array.isArray(store.game.checks)) store.game.checks = [];
+    } catch (e) { table = null; ME = 0; store.game = null; save(); }
   }
 
   // online: the same screens over the shared module (loaded only when someone opens online play)
@@ -189,9 +198,18 @@
     if (push) try { history.pushState({ tab }, '', '#' + tab); } catch (e) { /* file:// */ }
     render();
   }
+  const TABS = ['play', 'table', 'study', 'settings'];
+  const hashTab = () => { const h = (location.hash || '').slice(1); return TABS.includes(h) ? h : null; };
   window.addEventListener('popstate', e => {
-    if ($('#sheet')) { closeSheet(); return; }
-    showTab((e.state && e.state.tab) || 'play', false);
+    // Back with a sheet open only closes the sheet; the address stays on the tab that is shown
+    if ($('#sheet')) { closeSheet(); try { history.pushState({ tab: ui.tab }, '', '#' + ui.tab); } catch (er) { /* file:// */ } return; }
+    const tab = (e.state && TABS.includes(e.state.tab) && e.state.tab) || hashTab() || 'play';
+    if (tab !== ui.tab) showTab(tab, false);
+  });
+  // a typed address (#table etc.) switches tabs too
+  window.addEventListener('hashchange', () => {
+    const tab = hashTab();
+    if (tab && tab !== ui.tab) { closeSheet(); showTab(tab, false); }
   });
   // help bubbles
   document.addEventListener('click', e => {
@@ -299,7 +317,7 @@
   }
 
   // ---------------------------------------------------------------- the game screen
-  let mapApi = null, mapBox = null, lastSeen = null, botTimer = null, flipTimer = null;
+  let mapApi = null, mapBox = null, lastSeen = null, botTimer = null, flipTimer = null, flipKey = null;
   function ensureMap() {
     if (mapBox) return;
     mapBox = document.createElement('div');
@@ -330,6 +348,15 @@
   }
 
   function renderGame() {
+    try { renderGame2(); } catch (e) {
+      // a broken local save must never leave Play blank: drop it and show the setup screen
+      if (table && table.online) throw e;
+      table = null; store.game = null; save(); resetSel(); lastSeen = null;
+      const g = $('#game'); if (g) g.remove();
+      vPlay._h = null; renderSetup();
+    }
+  }
+  function renderGame2() {
     const v = table.view();
     if (!v) { put(vPlay, '<div class="setup"><div class="panel"><b>Connecting…</b></div></div>'); return; }
     ensureMap();
@@ -345,7 +372,10 @@
     const fresh = lastSeen && lastSeen.turn === v.turn ? false : true;
     // what changed since the last screen (for motion)
     const boom = v.lastOut && v.lastOut.length && v !== lastSeen ? v.lastOut : [];
-    if ((v.lastInf && v.lastInf.length) || (v.lastEpi && v.lastEpi.length) || (v.lastDraw && v.lastDraw.length)) showFlips(v);
+    // flips show once, when the move that made them arrives (not on every tap, not after a reload)
+    const fk = v.turn + ':' + v.log.length + ':' + v.phase;
+    if (lastSeen && fk !== flipKey && ((v.lastInf && v.lastInf.length) || (v.lastEpi && v.lastEpi.length) || (v.lastDraw && v.lastDraw.length))) showFlips(v);
+    flipKey = fk;
     lastSeen = v;
     const myTurn = toAct.includes(ME);
     // reachable cities for the current move selection
@@ -437,13 +467,21 @@
         p2 = moves.filter(a => { const k = a.t; if (seen.has(k)) return false; seen.add(k); return true; })
           .map(a => '<button class="btn small' + (a.t === 'drive' || a.t === 'shuttle' || a.t === 'dispatch' ? ' primary' : '') + '" data-mv=\'' + esc(JSON.stringify(a)) + '\'>' + esc(moveLabel(a, v)) + '</button>').join('');
         if (!p2) p2 = '<span>' + (c === v.pawns[who] ? (who === ME ? 'You are here.' : v.names[who] + ' is here.') : 'No way to get there this action.') + '</span>';
-        if (v.roles[ME] === D.ROLE_IDX.dispatcher) p2 = whoPicker(v) + p2;
+        if (v.roles[ME] === D.ROLE_IDX.dispatcher) { p2 = whoPicker(v) + p2; cls += ' wrap'; }
       } else p2 = '<span>' + esc(cityNote(v, c)) + '</span>';
     } else if (myAct) {
       p1 = 'Your turn <span class="left-pips">' + [0, 1, 2, 3].map(i => '<i class="' + (i < v.left ? '' : 'off') + '"></i>').join('') + '</span><span class="muted small" style="font-weight:500">' + v.left + ' action' + (v.left === 1 ? '' : 's') + ' left</span>';
       p2 = ui.hint ? '<span style="color:var(--text)">Plan: ' + esc(ui.hint.text) + '</span>' : '<span>Tap a city to move. Dashed rings: one action away.</span>';
-      if (v.roles[ME] === D.ROLE_IDX.dispatcher) p2 = whoPicker(v) + p2;
+      if (v.roles[ME] === D.ROLE_IDX.dispatcher) { p2 = whoPicker(v) + p2; cls += ' wrap'; }
       cls += ' mine';
+    } else if (v.phase === 'forecast' && v.pend && v.pend.seat === ME) {
+      p1 = 'Forecast: put the top 6 infection cards in order';
+      p2 = '<button class="btn small primary" data-g="forecast">Arrange cards</button>';
+      cls += ' mine';
+    } else if (v.cur === ME) {
+      const last = v.log[v.log.length - 1];
+      p1 = 'Waiting for teammates…';
+      p2 = '<span>' + esc(last ? last.m : '') + '</span>';
     } else {
       const last = v.log[v.log.length - 1];
       p1 = (v.human[v.cur] ? esc(v.names[v.cur]) : esc(v.names[v.cur]) + ' <span class="muted small">(' + esc(roleName(v, v.cur)) + ')</span>') + ' is playing…';
@@ -488,8 +526,10 @@
       return '<div class="pchip' + (p === v.cur && !v.over ? ' turn' : '') + '" data-player="' + p + '">' + A.roleIcon(r, 15) +
         '<span class="nmx">' + esc(playerLabel(v, p)) + ' <span class="muted">· ' + esc(shortRole(r)) + '</span></span><b>' + n + '</b>' + cards + '</div>';
     }).join('');
-    const box = $('#g-players');
-    put(box, html);
+    // the phone row is narrow: with 3-4 players a computer chip shows its role only ("Medic"), people keep their name
+    const narrow = v.roles.length > 2 ? v.roles.map((r, p) => '<div class="pchip' + (p === v.cur && !v.over ? ' turn' : '') + '" data-player="' + p + '">' + A.roleIcon(r, 15) +
+      '<span class="nmx">' + (p === ME && !v.over ? 'You' : v.human[p] ? esc(v.names[p]) : esc(shortRole(r))) + '</span><b>' + v.handN[p] + '</b></div>').join('') : html;
+    put($('#g-players'), narrow);
     const side = $('#g-side .players');
     if (side) put(side, html);
   }
@@ -801,6 +841,7 @@
     else if (k === 'pass') act({ t: 'pass' });
     else if (k === 'rp') act({ t: 'event', card: EV.resilient, city: +g.dataset.c });
     else if (k === 'rp-pick') rpSheet(v);
+    else if (k === 'forecast' && v.phase === 'forecast' && v.pend && v.pend.seat === ME) forecastSheet(v);
     else if (k === 'discard' && ui.discardPick >= 0) { const c = ui.discardPick; ui.discardPick = -1; act({ t: 'discard', card: c }); }
     else if (k === 'share') shareSheet(v);
     else if (k === 'cptake') {
@@ -882,8 +923,28 @@
       setup: 9, after: false, mode: 'draw', undo: [], fq: [] };
   }
   function tr() {
-    if (!store.table || !Array.isArray(store.table.piles)) store.table = newTracker(store.settings.players, store.settings.epidemics);
+    if (trOk.has(store.table)) return store.table;
+    if (!trValid(store.table)) { store.table = newTracker(store.settings.players, store.settings.epidemics); save(); }
+    trOk.add(store.table);
     return store.table;
+  }
+  const trOk = new WeakSet();
+  // a saved tracker with missing or broken fields starts fresh instead of leaving the tab blank
+  function trValid(t) {
+    try {
+      if (!t || typeof t !== 'object') return false;
+      const arr = (x, len) => Array.isArray(x) && (len === undefined || x.length === len);
+      const cityList = x => arr(x) && x.every(c => Number.isInteger(c) && c >= 0 && c < 48);
+      if (![2, 3, 4].includes(t.players) || ![4, 5, 6].includes(t.epidemics)) return false;
+      if (!arr(t.piles, t.epidemics) || !t.piles.every(n => Number.isInteger(n) && n > 0)) return false;
+      if (!arr(t.layers) || !t.layers.every(cityList) || !cityList(t.idisc) || !cityList(t.iremoved) || !cityList(t.fq)) return false;
+      if (!arr(t.cubes, 192) || !arr(t.undo)) return false;
+      if (![t.drawn, t.epiDrawn, t.outbreaks, t.rate, t.setup].every(n => Number.isInteger(n) && n >= 0)) return false;
+      if (t.rate > 6 || t.epiDrawn > t.epidemics || !['draw', 'epi', 'treat', 'rp', 'forecast'].includes(t.mode)) return false;
+      if (t.mode === 'epi' && !(Number.isInteger(t.epiLeft) && t.epiLeft > 0)) return false;
+      O.infectionOdds(trView(t), 2, null);
+      return true;
+    } catch (e) { return false; }
   }
   function trView(t) {
     return { layers: t.layers, idisc: t.idisc, iremoved: t.iremoved, rate: t.rate, piles: t.piles, pdeckCount: t.piles.reduce((a, b) => a + b, 0) - t.drawn, epiDrawn: t.epiDrawn, cubes: t.cubes, erad: [0, 0, 0, 0] };
@@ -955,6 +1016,7 @@
       t.layers.unshift(t.idisc.slice().sort((a, b) => a - b)); t.idisc = [];
       t.epiLeft--;
       t.mode = t.epiLeft > 0 ? 'epi' : 'draw';
+      trEpiIfNoDeck(t);
       flash(c); save(); renderTable(); return;
     }
     // draw mode: an infection card was flipped
@@ -966,6 +1028,16 @@
     t.idisc.push(c);
     t.after = false;
     flash(c); save(); renderTable();
+  }
+  // an Epidemic with no infection cards left to flip from the bottom: raise the rate and shuffle the discard back on top
+  function trEpiIfNoDeck(t) {
+    while (t.mode === 'epi' && 48 - t.idisc.length - t.iremoved.length <= 0) {
+      t.rate = Math.min(6, t.rate + 1);
+      t.layers = t.idisc.length ? [t.idisc.slice().sort((a, b) => a - b)] : [];
+      t.idisc = [];
+      t.epiLeft--;
+      t.mode = t.epiLeft > 0 ? 'epi' : 'draw';
+    }
   }
   function flash(c) { setTimeout(() => { const el = document.querySelector('.tc[data-tc="' + c + '"]'); if (el) el.classList.add('flash'); }, 0); }
   function renderTable() {
@@ -1015,7 +1087,10 @@
     const c = e.target.closest('[data-tc]');
     if (c) { trTap(+c.dataset.tc); return; }
     const m = e.target.closest('[data-mode]');
-    if (m) { t.mode = m.dataset.mode; t.fq = []; save(); renderTable(); return; }
+    if (m) {
+      if (t.mode === 'epi' && m.dataset.mode !== 'epi') { toast('Tap the Epidemic’s bottom card first (or Undo)'); return; }
+      t.mode = m.dataset.mode; t.fq = []; save(); renderTable(); return;
+    }
     const b = e.target.closest('[data-t]');
     if (!b) return;
     const k = b.dataset.t;
@@ -1024,8 +1099,10 @@
       const n = +k.slice(4);
       const left = t.piles.reduce((a, b2) => a + b2, 0) - t.drawn;
       if (left < 2) { toast('The player deck is empty: the team loses.'); return; }
-      trPush(t); t.drawn += 2; t.epiDrawn = Math.min(t.epidemics, t.epiDrawn + n); t.after = true;
-      if (n) { t.mode = 'epi'; t.epiLeft = n; }
+      if (t.mode === 'epi') { toast('Tap the Epidemic’s bottom card first (or Undo)'); return; }
+      if (t.epiDrawn + n > t.epidemics) { toast(t.epiDrawn >= t.epidemics ? 'All ' + t.epidemics + ' Epidemics are already out.' : 'Only ' + (t.epidemics - t.epiDrawn) + ' Epidemic left in this setup.'); return; }
+      trPush(t); t.drawn += 2; t.epiDrawn += n; t.after = true;
+      if (n) { t.mode = 'epi'; t.epiLeft = n; trEpiIfNoDeck(t); }
       save(); renderTable();
     } else if (k === 'setup') {
       sheet('New tracker', '<div class="label">Players</div><div class="seg" data-ns="players">' + [2, 3, 4].map(n => '<button aria-pressed="' + (store.settings.players === n) + '" data-v="' + n + '">' + n + '</button>').join('') + '</div>' +
@@ -1042,6 +1119,7 @@
         if (!x) return;
         closeSheet();
         if (x.dataset.x === 'new') { vTable.querySelector('[data-t="setup"]').click(); return; }
+        if (t.mode === 'epi') { toast('Tap the Epidemic’s bottom card first (or Undo)'); return; }
         t.mode = x.dataset.x === 'rp' ? 'rp' : 'forecast'; t.fq = []; save(); renderTable();
       });
     }
