@@ -20,6 +20,7 @@ First version is live: play Pandemic (2nd edition) with computer teammates or fr
 | Settings | Done |
 | Design pass (2026-10-20) | Done: phone taps all ≥40 px (status, risk, player chips), role buttons stack icon over name, bigger hand cards with soft hyphens (all 53 card names fit at 393 px and laptop, measured), seamless map ocean, black cities outlined, colour swatches visible, one set of game-over buttons + dim backdrop, desktop setup/hand/table/study sized up, phone Study chart no longer clipped. Screenshots: scratchpad `design/pandemic/before|after` |
 | Real world map (2026-10-20) | Done: Natural Earth 1:50m land + big lakes (public domain), Mercator, cities on their real spots, crowded areas spread by one smooth warp that bends the coast too (`node tools/build-map.js` after `npm install`; writes `js/map-data.js` and the x/y in `js/data.js`). Closest city pair 58 units (was 47.7); phone tap radius min 10.7 px (was 8.8), median 10.9 px (was 12.1). Reviewer agent named it a world map at a glance, no major errors. Screenshots: scratchpad `design/pandemic-maps/before|after` |
+| Auto-fit zoom (2026-10-20) | Done: map always opens in auto (whole board fits, 8 px sea margin, re-fits with a glide on resize/rotation; Play tab return and new game = auto); one-finger drag does nothing in auto; pinch / wheel / ctrl-pinch / + − zoom (max 4×), drag pans clamped to the board; fit button (top-right, beside − +) dimmed in auto, lit blue when zoomed; double tap on empty sea while zoomed = back to auto. Removed: menu "Whole map" item, double-tap zoom-in. Test `node tests/zoom.test.mjs` (WebKit, 393×659, 659×393, 1280×800): 28 fails on old code, all pass now. Study danger map is static (not zoomable). Screenshots: scratchpad `design/pandemic-zoom/before|after` |
 | QA pass (2026-10-20) | 11 findings fixed: broken saves (game or tracker) start fresh instead of a blank tab; flip strip shows once (not on taps or reload); typed `#tab` addresses and Back work, Back with a sheet open only closes it; tracker blocks Flip/Treat mid-Epidemic, refuses more Epidemics than the setup has, resolves an Epidemic with an empty infection deck; Dispatcher row wraps at 393 px; 3–4 player chips show role only for computers; own Forecast prompt. Re-checked with the QA scripts in the scratchpad (qa1, flip4, disp4 screenshot) |
 
 ## Authorized next steps
@@ -28,10 +29,11 @@ First version is live: play Pandemic (2nd edition) with computer teammates or fr
 ## Standing instructions (Tim's words)
 - "add risk, clue, battleship, connect four, stratego, clue, checkers, pandemic, splendor, king of tokyo, 7 wonders, and evolution to the list of games." (2026-10-20)
 - "the map of the US in TTR looks nothing like the US. Fix this and any other similar problems accross the games" (2026-10-20): the board must be recognisable at a glance, every city on its real spot of land.
+- "some games have maps and whatnot you can zoom in and out of often. Make it so that there is only an auto zoom that automatically fits the whole board in sight and then you can zoom if you want with easily reseting back to auto mode." (2026-10-20): auto fit is the only zoom mode; + / − / fit are the only controls; no saved zoom.
 - Global: never ask permission; $0; Tim decides looks, wording, names; phone-first dark look.
 
 ## Traps
-- `node --test tests/` fails on Windows: run `node --test tests/engine.test.js` and `node tests/online.test.mjs`.
+- `node --test tests/` fails on Windows: run `node --test tests/engine.test.js`, `node tests/online.test.mjs`, `node tests/over-prompts.test.mjs` and `node tests/zoom.test.mjs` (the last two need Playwright in `~/.claude/tools`).
 - Python's `http.server` on Windows shares ports with other processes (several agents' servers answered the same port). Serve with a Node server on port 0 and check the page title.
 - The CSS class `.risk` is the phone risk strip. The map's risk rings are `.riskring` (the laptop hides `.risk`).
 - Online re-renders arrive often (presence). The screens write HTML only when it changed (`put()` in app.js), otherwise buttons get replaced under a finger.
@@ -49,6 +51,7 @@ First version is live: play Pandemic (2nd edition) with computer teammates or fr
 
 ## NOT verified
 - Real iPhone (only WebKit at 393 px via phone-view).
+- Zoom: real finger pinch and a real Mac trackpad pinch (the test uses synthetic two-pointer events and mouse wheel); Safari's toolbar resizing the box on a real phone.
 - Real map: small direction shifts from the spreading (Mumbai nearly straight below Delhi, Cairo a little west of Istanbul, Montréal above Washington); New Zealand sits just past the board's right edge (shows only on wide boxes).
 - Three- and four-person online rooms (tested two people).
 - Host leaving mid-game with another person taking over (shared module feature; not tested for Pandemic).

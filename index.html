@@ -102,8 +102,11 @@
   .map { position: relative; background: var(--ocean); border: 1px solid #1f3247; border-radius: 12px; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; }
   .map svg { display: block; width: 100%; height: 100%; }
   .map .zoomhint { position: absolute; right: 6px; bottom: 5px; font-size: 10.5px; color: #6f86a6; pointer-events: none; }
-  .map .zbtn { position: absolute; right: 6px; top: 6px; width: 30px; height: 30px; border-radius: 8px; border: 1px solid #2b4560; background: rgba(13,27,44,.85); color: #a9bdd8; display: none; align-items: center; justify-content: center; cursor: pointer; }
-  .map.zoomed .zbtn { display: inline-flex; }
+  .map .zctl { position: absolute; right: 6px; top: 6px; display: flex; gap: 4px; }
+  .map .zbtn { width: 30px; height: 30px; padding: 0; border-radius: 8px; border: 1px solid #2b4560; background: rgba(13,27,44,.85); color: #a9bdd8; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: opacity .2s, color .2s, border-color .2s; }
+  .map .zbtn[data-z="fit"], .map .zbtn[data-z="out"] { opacity: .45; }
+  .map.zoomed .zbtn[data-z="fit"], .map.zoomed .zbtn[data-z="out"] { opacity: 1; }
+  .map.zoomed .zbtn[data-z="fit"] { color: var(--accent); border-color: var(--accent); }
   svg .link { stroke: #7f95b5; stroke-opacity: .38; stroke-width: 1.6; }
   svg .city-dot { stroke: #0b1420; stroke-width: 2; }
   svg .city-dot.blk { stroke: #9aa0b4; stroke-width: 1.6; }
@@ -349,7 +352,7 @@
 <script src="js/bots.js?v=3"></script>
 <script src="js/online-game.js?v=3"></script>
 <script src="js/strength-data.js?v=3"></script>
-<script src="js/art.js?v=5"></script>
-<script src="js/app.js?v=4"></script>
+<script src="js/art.js?v=6"></script>
+<script src="js/app.js?v=5"></script>
 </body>
 </html>

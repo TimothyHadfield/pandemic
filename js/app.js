@@ -199,6 +199,7 @@
     document.querySelectorAll('.banner, .flipstrip, .pop').forEach(b => b.remove());
     document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
     document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + tab));
+    if (tab === 'play' && mapApi) mapApi.reset(true); // back on Play: the map is in auto
     if (push) try { history.pushState({ tab }, '', '#' + tab); } catch (e) { /* file:// */ }
     render();
   }
@@ -369,7 +370,7 @@
       vPlay.innerHTML = '<div id="game"><div class="status" id="g-status"></div><div class="info" id="g-info"></div><div class="risk" id="g-risk"></div>' +
         '<div class="players" id="g-players"></div><div class="hand" id="g-hand"></div><div class="acts" id="g-acts"></div><div id="g-side"></div></div>';
       $('#game').insertBefore(mapBox, $('#g-info'));
-      setTimeout(() => mapApi.fit(), 0);
+      setTimeout(() => { mapApi.reset(true); mapApi.fit(true); }, 0); // a new game screen always starts in auto
     }
     const toAct = table.toAct();
     const odds = oddsFor(v);
@@ -918,13 +919,11 @@
   function menuSheet(v) {
     const online = table.online;
     sheet('Game', '<div class="small muted">' + LEVEL_NOTE[v.epidemics] + ' · ' + v.n + ' players · turn ' + v.turn + (v.open ? ' · open hands' : '') + '</div>' +
-      '<button class="btn" data-m="zoom">Whole map</button>' +
       (online ? '<button class="btn" data-m="leave">Leave the room</button>' : '<button class="btn" data-m="new">New game</button>') +
       (online && net.snap && net.snap.code ? '<p class="small muted" style="margin:0">Room code <b>' + esc(net.snap.code) + '</b></p>' : ''), e => {
       const b = e.target.closest('[data-m]');
       if (!b) return;
       closeSheet();
-      if (b.dataset.m === 'zoom') mapApi.reset();
       if (b.dataset.m === 'leave') confirmBox('Leave this game? A computer takes your seat.', 'Leave', leaveOnline);
       if (b.dataset.m === 'new') confirmBox('Start a new game? This one ends.', 'New game', () => { store.game = null; table = null; save(); resetSel(); renderPlay(); });
     }, { keep: true });

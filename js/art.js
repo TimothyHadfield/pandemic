@@ -71,7 +71,11 @@
   function createMap(box, opts) {
     opts = opts || {};
     box.classList.add('map');
-    box.innerHTML = '<button class="zbtn" aria-label="Whole map"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>';
+    const zi = d => '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="' + d + '"/></svg>';
+    box.innerHTML = '<div class="zctl">' +
+      '<button class="zbtn" data-z="out" aria-label="Zoom out">' + zi('M5 12h14') + '</button>' +
+      '<button class="zbtn" data-z="in" aria-label="Zoom in">' + zi('M5 12h14M12 5v14') + '</button>' +
+      '<button class="zbtn" data-z="fit" aria-label="Whole map">' + zi('M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5') + '</button></div>';
     const svg = el('svg', { viewBox: '0 0 ' + W + ' ' + H, 'aria-label': 'World map' });
     box.insertBefore(svg, box.firstChild);
     const defs = el('defs', {}, svg);
@@ -117,34 +121,72 @@
       return { g, station, dot, sel, cnt, others, lbl, risk, last: [0, 0, 0, 0] };
     });
     const pawns = [];
+    // ---------------------------------------------------------------- zoom: one auto fit, manual zoom on demand
+    // Auto (default): the whole board fits the box, centred, with a small margin, and re-fits whenever the box
+    // changes size. Pinch / wheel / + zooms in (drag then pans); the fit button or zooming back out returns to auto.
+    const PAD = 8; // px of sea around the board in auto
     let vb = { x: 0, y: 0, w: W, h: H }, base = { x: 0, y: 0, w: W, h: H };
+    let auto = true, boxW = 0, boxH = 0, anim = 0;
     let scale = 1;
     let last = null;
 
-    function fit() {
-      const r = box.getBoundingClientRect();
-      if (!r.width || !r.height) return;
-      const asp = r.width / r.height;
-      const nb = asp > W / H ? { w: H * asp, h: H } : { w: W, h: W / asp };
-      nb.x = (W - nb.w) / 2; nb.y = (H - nb.h) / 2;
-      const zoom = vb.w / base.w;
-      base = nb;
-      vb = { w: base.w * zoom, h: base.h * zoom, x: vb.x, y: vb.y };
-      clamp();
-      apply();
+    function fitBox() {
+      const s = Math.min((boxW - 2 * PAD) / W, (boxH - 2 * PAD) / H);
+      const w = boxW / s, h = boxH / s;
+      return { x: (W - w) / 2, y: (H - h) / 2, w, h };
     }
-    function clamp() {
-      if (vb.w > base.w) { vb.w = base.w; vb.h = base.h; }
+    // the box changed size (load, tab return, rotation, panels, phone toolbar)
+    function fit(instant) {
+      const r = svg.getBoundingClientRect();
+      if (!r.width || !r.height) { boxW = boxH = 0; return; }
+      const wasHidden = !boxW, flipped = boxW && (boxW > boxH) !== (r.width > r.height);
+      const old = base;
+      boxW = r.width; boxH = r.height;
+      base = fitBox();
+      if (wasHidden || flipped) auto = true;
+      if (auto) { if (wasHidden || instant === true) set(base); else glide(base); return; }
+      // zoomed: keep the same zoom and centre in the new box shape
+      stop();
+      const z = vb.w / old.w, cx = vb.x + vb.w / 2, cy = vb.y + vb.h / 2;
+      const w = base.w * z, h = base.h * z;
+      set(clamp({ x: cx - w / 2, y: cy - h / 2, w, h }));
+    }
+    // keep a manual view between 1x (= auto) and 4x, and keep the board on screen
+    function clamp(v) {
+      v = Object.assign({}, v);
+      if (v.w >= base.w - 0.5) { auto = true; return Object.assign({}, base); }
+      auto = false;
       const minW = base.w / 4;
-      if (vb.w < minW) { const k = minW / vb.w; vb.w *= k; vb.h *= k; }
-      vb.x = Math.min(Math.max(vb.x, base.x), base.x + base.w - vb.w);
-      vb.y = Math.min(Math.max(vb.y, base.y), base.y + base.h - vb.h);
+      if (v.w < minW) { const k = minW / v.w; v.x += v.w * (1 - k) / 2; v.y += v.h * (1 - k) / 2; v.w *= k; v.h *= k; }
+      const m = PAD * v.w / boxW; // the same small margin, in board units at this zoom
+      const ax = (lo, len, span) => (len >= span + 2 * m ? (span - len) / 2 : Math.min(Math.max(lo, -m), span + m - len));
+      v.x = ax(v.x, v.w, W); v.y = ax(v.y, v.h, H);
+      return v;
+    }
+    function set(v) { vb = v; apply(); }
+    function stop() { if (anim) cancelAnimationFrame(anim); anim = 0; }
+    // glide (don't jump) to a view
+    function glide(to) {
+      stop();
+      const from = Object.assign({}, vb), t0 = performance.now(), T = 260;
+      const step = now => {
+        const t = Math.min(1, (now - t0) / T), e = 1 - Math.pow(1 - t, 3);
+        set({ x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e, w: from.w + (to.w - from.w) * e, h: from.h + (to.h - from.h) * e });
+        anim = t < 1 ? requestAnimationFrame(step) : 0;
+      };
+      anim = requestAnimationFrame(step);
+    }
+    function reset(instant) { auto = true; if (instant === true) { stop(); set(Object.assign({}, base)); } else glide(Object.assign({}, base)); }
+    // zoom by k (>1 = in) keeping the board point p under the same screen spot (fx, fy = 0..1 across the box)
+    function zoomBy(k, p, fx, fy, smooth) {
+      const w = vb.w / k, h = vb.h / k;
+      const to = clamp({ x: p.x - fx * w, y: p.y - fy * h, w, h });
+      if (smooth) glide(to); else { stop(); set(to); }
     }
     function apply() {
       svg.setAttribute('viewBox', vb.x + ' ' + vb.y + ' ' + vb.w + ' ' + vb.h);
-      const r = box.getBoundingClientRect();
-      scale = r.width ? r.width / vb.w : 1;
-      box.classList.toggle('zoomed', vb.w < base.w - 1);
+      scale = boxW ? boxW / vb.w : 1;
+      box.classList.toggle('zoomed', !auto);
       sizeThings();
     }
     // keep dots, pawns and text readable at any zoom
@@ -232,16 +274,17 @@
     const pts = new Map();
     let drag = null, moved = false, lastTap = 0;
     const toMap = (cx, cy) => {
-      const r = box.getBoundingClientRect();
+      const r = svg.getBoundingClientRect();
       return { x: vb.x + (cx - r.left) / r.width * vb.w, y: vb.y + (cy - r.top) / r.height * vb.h };
     };
     box.addEventListener('pointerdown', e => {
-      if (e.target.closest('.zbtn')) return;
-      box.setPointerCapture && box.setPointerCapture(e.pointerId);
+      if (e.target.closest('.zctl')) return;
+      try { box.setPointerCapture(e.pointerId); } catch (er) { /* not a live pointer */ }
       pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
       moved = false;
       if (pts.size === 1) drag = { x: e.clientX, y: e.clientY, vb: Object.assign({}, vb) };
       else if (pts.size === 2) {
+        stop();
         const [a, b] = Array.from(pts.values());
         drag = { pinch: Math.hypot(a.x - b.x, a.y - b.y), mid: toMap((a.x + b.x) / 2, (a.y + b.y) / 2), vb: Object.assign({}, vb) };
       }
@@ -249,23 +292,20 @@
     box.addEventListener('pointermove', e => {
       if (!pts.has(e.pointerId) || !drag) return;
       pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      const r = box.getBoundingClientRect();
+      const r = svg.getBoundingClientRect();
       if (pts.size === 1 && !drag.pinch) {
         const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
         if (Math.abs(dx) + Math.abs(dy) > 6) moved = true;
-        if (!moved || drag.vb.w >= base.w - 1) return;
-        vb.x = drag.vb.x - dx / r.width * vb.w; vb.y = drag.vb.y - dy / r.height * vb.h;
-        clamp(); apply();
+        if (!moved || auto) return; // auto: a one-finger drag never moves the board
+        stop();
+        set(clamp({ x: drag.vb.x - dx / r.width * drag.vb.w, y: drag.vb.y - dy / r.height * drag.vb.h, w: drag.vb.w, h: drag.vb.h }));
       } else if (pts.size === 2 && drag.pinch) {
         moved = true;
         const [a, b] = Array.from(pts.values());
-        const d = Math.hypot(a.x - b.x, a.y - b.y);
-        const k = drag.pinch / Math.max(20, d);
-        vb.w = drag.vb.w * k; vb.h = drag.vb.h * k;
+        const k = drag.pinch / Math.max(20, Math.hypot(a.x - b.x, a.y - b.y));
+        const w = drag.vb.w * k, h = drag.vb.h * k;
         const mx = ((a.x + b.x) / 2 - r.left) / r.width, my = ((a.y + b.y) / 2 - r.top) / r.height;
-        clamp();
-        vb.x = drag.mid.x - mx * vb.w; vb.y = drag.mid.y - my * vb.h;
-        clamp(); apply();
+        set(clamp({ x: drag.mid.x - mx * w, y: drag.mid.y - my * h, w, h }));
       }
     });
     const up = e => {
@@ -275,39 +315,36 @@
       if (!moved && e.type === 'pointerup') {
         const p = toMap(e.clientX, e.clientY);
         const now = Date.now();
-        if (now - lastTap < 300 && opts.doubleZoom !== false) { zoomAt(p, vb.w < base.w - 1 ? 1 : 2.4); lastTap = 0; }
-        else {
-          lastTap = now;
-          let best = -1, bd = 1e9;
-          D.CITIES.forEach(c => { const d = Math.hypot(c.x - p.x, c.y - p.y); if (d < bd) { bd = d; best = c.i; } });
-          const lim = Math.max(22, 16 / scale);
-          if (opts.onTap) opts.onTap(bd <= lim ? best : -1);
-        }
+        let best = -1, bd = 1e9;
+        D.CITIES.forEach(c => { const d = Math.hypot(c.x - p.x, c.y - p.y); if (d < bd) { bd = d; best = c.i; } });
+        const lim = Math.max(22, 16 / scale);
+        const city = bd <= lim ? best : -1;
+        // double tap on empty board while zoomed: back to auto (taps on cities stay taps)
+        if (city < 0 && !auto && now - lastTap < 300) { lastTap = 0; reset(); }
+        else { lastTap = city < 0 ? now : 0; if (opts.onTap) opts.onTap(city); }
       }
       drag = null;
     };
     box.addEventListener('pointerup', up);
     box.addEventListener('pointercancel', up);
+    // mouse wheel, or a trackpad pinch (ctrl + wheel), over the board
     box.addEventListener('wheel', e => {
       e.preventDefault();
-      const p = toMap(e.clientX, e.clientY);
-      const k = e.deltaY > 0 ? 1.15 : 1 / 1.15;
-      const r = box.getBoundingClientRect();
-      const mx = (e.clientX - r.left) / r.width, my = (e.clientY - r.top) / r.height;
-      vb.w *= k; vb.h *= k; clamp();
-      vb.x = p.x - mx * vb.w; vb.y = p.y - my * vb.h;
-      clamp(); apply();
+      const r = svg.getBoundingClientRect();
+      const dy = e.deltaY * (e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 400 : 1);
+      const k = Math.exp(-Math.max(-300, Math.min(300, dy)) * (e.ctrlKey ? 0.01 : 0.0025));
+      zoomBy(k, toMap(e.clientX, e.clientY), (e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height, false);
     }, { passive: false });
-    function zoomAt(p, z) {
-      vb.w = base.w / z; vb.h = base.h / z;
-      clamp();
-      vb.x = p.x - vb.w / 2; vb.y = p.y - vb.h / 2;
-      clamp(); apply();
-    }
-    box.querySelector('.zbtn').addEventListener('click', () => { vb = Object.assign({}, base); apply(); });
-    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(fit).observe(box);
-    requestAnimationFrame(fit);
-    return { update, fit, zoomAt: (city, z) => zoomAt(D.CITIES[city], z || 2.4), reset: () => { vb = Object.assign({}, base); apply(); }, svg };
+    // + / − / fit
+    box.querySelector('.zctl').addEventListener('click', e => {
+      const b = e.target.closest('[data-z]');
+      if (!b) return;
+      if (b.dataset.z === 'fit') { reset(); return; }
+      zoomBy(b.dataset.z === 'in' ? 1.6 : 1 / 1.6, { x: vb.x + vb.w / 2, y: vb.y + vb.h / 2 }, 0.5, 0.5, true);
+    });
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => fit()).observe(box);
+    requestAnimationFrame(() => fit());
+    return { update, fit, reset, svg };
   }
 
   // a small static board for Study (heat per city)
