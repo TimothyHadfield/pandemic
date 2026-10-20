@@ -19,6 +19,7 @@ First version is live: play Pandemic (2nd edition) with computer teammates or fr
 | Study tab (win rates, danger map, last game chart, points lost) | Done (`js/strength-data.js` rebuilt with `node tools/build-strength.js 200`, about 12 min) |
 | Settings | Done |
 | Design pass (2026-10-20) | Done: phone taps all ≥40 px (status, risk, player chips), role buttons stack icon over name, bigger hand cards with soft hyphens (all 53 card names fit at 393 px and laptop, measured), seamless map ocean, black cities outlined, colour swatches visible, one set of game-over buttons + dim backdrop, desktop setup/hand/table/study sized up, phone Study chart no longer clipped. Screenshots: scratchpad `design/pandemic/before|after` |
+| Real world map (2026-10-20) | Done: Natural Earth 1:50m land + big lakes (public domain), Mercator, cities on their real spots, crowded areas spread by one smooth warp that bends the coast too (`node tools/build-map.js` after `npm install`; writes `js/map-data.js` and the x/y in `js/data.js`). Closest city pair 58 units (was 47.7); phone tap radius min 10.7 px (was 8.8), median 10.9 px (was 12.1). Reviewer agent named it a world map at a glance, no major errors. Screenshots: scratchpad `design/pandemic-maps/before|after` |
 | QA pass (2026-10-20) | 11 findings fixed: broken saves (game or tracker) start fresh instead of a blank tab; flip strip shows once (not on taps or reload); typed `#tab` addresses and Back work, Back with a sheet open only closes it; tracker blocks Flip/Treat mid-Epidemic, refuses more Epidemics than the setup has, resolves an Epidemic with an empty infection deck; Dispatcher row wraps at 393 px; 3–4 player chips show role only for computers; own Forecast prompt. Re-checked with the QA scripts in the scratchpad (qa1, flip4, disp4 screenshot) |
 
 ## Authorized next steps
@@ -26,6 +27,7 @@ First version is live: play Pandemic (2nd edition) with computer teammates or fr
 
 ## Standing instructions (Tim's words)
 - "add risk, clue, battleship, connect four, stratego, clue, checkers, pandemic, splendor, king of tokyo, 7 wonders, and evolution to the list of games." (2026-10-20)
+- "the map of the US in TTR looks nothing like the US. Fix this and any other similar problems accross the games" (2026-10-20): the board must be recognisable at a glance, every city on its real spot of land.
 - Global: never ask permission; $0; Tim decides looks, wording, names; phone-first dark look.
 
 ## Traps
@@ -33,6 +35,7 @@ First version is live: play Pandemic (2nd edition) with computer teammates or fr
 - Python's `http.server` on Windows shares ports with other processes (several agents' servers answered the same port). Serve with a Node server on port 0 and check the page title.
 - The CSS class `.risk` is the phone risk strip. The map's risk rings are `.riskring` (the laptop hides `.risk`).
 - Online re-renders arrive often (presence). The screens write HTML only when it changed (`put()` in app.js), otherwise buttons get replaced under a finger.
+- Never hand-edit city x/y in `js/data.js` or `js/map-data.js`: change `tools/build-map.js` (MIN spacing, lat/lon) and rerun it, or the land and the cities stop agreeing. `package.json` is dev-only (d3-geo); it has no `"type"` field on purpose (`"type": "commonjs"` breaks `tests/online.test.mjs`).
 - `?autoplay` makes the computer play your seat too (used for whole-game screenshots). Don't link it anywhere.
 - Hidden hands: the rulebook keeps hands private in Standard/Heroic. Computer teammates' hands are always shown (you'd ask them at a real table); people's hands are hidden online.
 
@@ -41,10 +44,12 @@ First version is live: play Pandemic (2nd edition) with computer teammates or fr
 - Population tie Chicago/Lima for first player: lower seat goes first (rulebook silent).
 - Online events: playable when the game asks (before each infection step; Resilient Population during an Epidemic), not at any moment.
 - Computer teammates in local games step one action at a time (speed in Settings).
+- Real map: Mercator lat ~70N to 45S; closest city pair ≥ 58 units; coastline stroke 1 (was 1.5, the detailed coast looked heavy); land/sea colours unchanged (reviewer found the laptop contrast weak, Tim's call); Santiago's label sits above its dot (clash below).
 - Map risk rings only on cities with cubes or with ≥12% chance, so the map isn't covered in rings at the start.
 
 ## NOT verified
 - Real iPhone (only WebKit at 393 px via phone-view).
+- Real map: small direction shifts from the spreading (Mumbai nearly straight below Delhi, Cairo a little west of Istanbul, Montréal above Washington); New Zealand sits just past the board's right edge (shows only on wide boxes).
 - Three- and four-person online rooms (tested two people).
 - Host leaving mid-game with another person taking over (shared module feature; not tested for Pandemic).
 - Event timing edge cases online (two people with events at the same window).
