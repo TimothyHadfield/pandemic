@@ -11,6 +11,8 @@
   // real coastlines (Natural Earth, public domain), built by tools/build-map.js into js/map-data.js
   const MAP = root.PanMap || { land: '', lakes: '', labelUp: [] };
   const LABEL_UP = new Set(MAP.labelUp);
+  // land a clear step lighter than the dark sea, so the continents read at a glance
+  const LAND_FILL = '#2c4a52', COAST = '#5b8290';
   // a label sits under its city, or above it where the map builder found a clash below
   const lblY = (i, off, fs) => D.CITIES[i].y + (LABEL_UP.has(i) ? fs * 0.75 - off : off);
 
@@ -81,8 +83,8 @@
     const grid = el('g', { stroke: '#1d3a57', 'stroke-width': 1, opacity: .55 }, svg);
     for (let x = -350; x < W + 400; x += 100) el('line', { x1: x, y1: -1000, x2: x, y2: H + 1000 }, grid);
     for (let y = -350; y < H + 400; y += 100) el('line', { x1: -2000, y1: y, x2: W + 2000, y2: y }, grid);
-    el('path', { d: MAP.land, fill: '#1a2c38', stroke: '#2a4456', 'stroke-width': 1, 'stroke-linejoin': 'round' }, svg);
-    el('path', { d: MAP.lakes, fill: 'url(#oc)', stroke: '#2a4456', 'stroke-width': .8 }, svg);
+    el('path', { d: MAP.land, fill: LAND_FILL, stroke: COAST, 'stroke-width': 1, 'stroke-linejoin': 'round' }, svg);
+    el('path', { d: MAP.lakes, fill: 'url(#oc)', stroke: COAST, 'stroke-width': .8 }, svg);
     // links (the three across the Pacific run off the edges)
     const links = el('g', {}, svg);
     const wrap = new Set(D.WRAP.map(([a, b]) => D.IDX[a] + '-' + D.IDX[b]));
@@ -311,7 +313,7 @@
   // a small static board for Study (heat per city)
   function heatMap(values, maxV) {
     let s = '<svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;display:block;background:#0a1626;border-radius:10px">';
-    s += '<path fill="#1a2c38" stroke="#2a4456" stroke-width="1" d="' + MAP.land + '"/><path fill="#0a1626" stroke="#2a4456" stroke-width=".8" d="' + MAP.lakes + '"/>';
+    s += '<path fill="' + LAND_FILL + '" stroke="' + COAST + '" stroke-width="1" d="' + MAP.land + '"/><path fill="#0a1626" stroke="' + COAST + '" stroke-width=".8" d="' + MAP.lakes + '"/>';
     s += '<g stroke="#7f95b5" stroke-opacity=".25" stroke-width="1.4">';
     D.LINKS.forEach(([a, b]) => { const A = D.CITIES[D.IDX[a]], B = D.CITIES[D.IDX[b]]; if (Math.abs(A.x - B.x) < 500) s += '<line x1="' + A.x + '" y1="' + A.y + '" x2="' + B.x + '" y2="' + B.y + '"/>'; });
     s += '</g>';
