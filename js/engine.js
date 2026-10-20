@@ -98,7 +98,7 @@
     delete s._bp;
     s.cur = best < 0 ? 0 : best;
     s.first = s.cur;
-    log(s, s.names[s.cur] + ' goes first (biggest city in hand).');
+    log(s, 'First player: ' + s.names[s.cur] + ' (biggest city in hand).');
     s.hist.push(snapStats(s));
     return s;
   }
