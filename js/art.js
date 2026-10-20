@@ -67,6 +67,8 @@
       pp = (c.pop / 1e6).toFixed(1) + 'M';
       ic = '';
     }
+    // soft hyphens so long one-word names break on a small card instead of being cut off
+    name = name.replace(/\b(Johannes|Washing|Fran|Peters|Govern|Popu)(burg|ton|cisco|ment|lation)\b/g, '$1&shy;$2');
     return '<button class="' + cls.join(' ') + '"' + (o.attr || '') + (o.delay ? ' style="animation-delay:' + o.delay + 'ms"' : '') + '>' +
       '<span class="band"' + (band || '') + '></span><span class="nm">' + name + '</span>' + ic + '<span class="pp">' + pp + '</span></button>';
   }
@@ -79,14 +81,14 @@
     const svg = el('svg', { viewBox: '0 0 ' + W + ' ' + H, 'aria-label': 'World map' });
     box.insertBefore(svg, box.firstChild);
     const defs = el('defs', {}, svg);
-    const g1 = el('radialGradient', { id: 'oc', cx: '50%', cy: '45%', r: '75%' }, defs);
+    // one seamless ocean past the board's edges (a tall phone box shows more sea, not a band)
+    const g1 = el('radialGradient', { id: 'oc', gradientUnits: 'userSpaceOnUse', cx: W / 2, cy: H * 0.45, r: W * 0.75 }, defs);
     el('stop', { offset: '0', 'stop-color': '#12304a' }, g1);
     el('stop', { offset: '1', 'stop-color': '#0a1626' }, g1);
-    el('rect', { x: -2000, y: -1000, width: 5000, height: 2500, fill: '#0a1626' }, svg);
-    el('rect', { x: 0, y: 0, width: W, height: H, fill: 'url(#oc)' }, svg);
+    el('rect', { x: -2000, y: -1000, width: 5000, height: 2500, fill: 'url(#oc)' }, svg);
     const grid = el('g', { stroke: '#1d3a57', 'stroke-width': 1, opacity: .55 }, svg);
-    for (let x = 50; x < W; x += 100) el('line', { x1: x, y1: 0, x2: x, y2: H }, grid);
-    for (let y = 50; y < H; y += 100) el('line', { x1: 0, y1: y, x2: W, y2: y }, grid);
+    for (let x = -350; x < W + 400; x += 100) el('line', { x1: x, y1: -1000, x2: x, y2: H + 1000 }, grid);
+    for (let y = -350; y < H + 400; y += 100) el('line', { x1: -2000, y1: y, x2: W + 2000, y2: y }, grid);
     const land = el('g', { fill: '#1a2c38', stroke: '#2a4456', 'stroke-width': 1.5, 'stroke-linejoin': 'round' }, svg);
     LAND.forEach(d => el('path', { d }, land));
     // links (the three across the Pacific run off the edges)
@@ -111,7 +113,7 @@
       const g = el('g', { class: 'city', transform: 'translate(' + c.x + ' ' + c.y + ')' }, cityG);
       const station = el('path', { d: 'M-17 -9 L-11 -15 L-5 -9 L-5 -2 L-17 -2 Z', fill: '#f4f1e8', stroke: '#0b1420', 'stroke-width': 1.5, visibility: 'hidden' }, g);
       const dot = el('circle', { class: 'city-dot', r: 8, fill: HEX[c.color] }, g);
-      if (c.color === 2) dot.setAttribute('stroke', '#8a8fa3');
+      if (c.color === 2) dot.classList.add('blk');
       const sel = el('circle', { class: 'ring-sel', r: 14, visibility: 'hidden' }, g);
       const cnt = el('text', { class: 'cnt' + (c.color === 1 ? ' dk' : ''), 'font-size': 11, y: 0.5 }, g);
       const others = el('g', {}, g);

@@ -429,7 +429,8 @@
     const myAct = v.phase === 'actions' && v.cur === ME && toAct.includes(ME);
     if (v.over) {
       p1 = v.over.win ? 'The world is saved!' : 'The team lost — ' + ({ outbreaks: '8 outbreaks', cubes: 'out of disease cubes', cards: 'out of player cards' }[v.over.why] || 'game over');
-      p2 = '<button class="btn small primary" data-g="new">New game</button><button class="btn small" data-go="study">Review</button>';
+      // New game / Review sit in the action row below (and in the banner): no third copy squeezed in here
+      p2 = '<span>' + esc('Turn ' + v.turn + ' · ' + v.outbreaks + ' outbreak' + (v.outbreaks === 1 ? '' : 's') + ' · ' + v.cured.filter(Boolean).length + ' of 4 cures') + '</span>';
       cls += v.over.win ? ' mine' : ' alert';
     } else if (ui.mode) {
       const m = ui.mode;
@@ -622,7 +623,7 @@
     showEnd.done = v.turn + ':' + v.over.why;
     if (!table.online) saveLast(v, (store.game && store.game.checks) || []);
     const b = document.createElement('div');
-    b.className = 'banner';
+    b.className = 'banner ' + (v.over.win ? 'win' : 'lose');
     b.innerHTML = '<h2>' + (v.over.win ? 'Cured!' : 'Game over') + '</h2><p class="muted" style="margin:0 0 12px">' +
       (v.over.win ? 'All four cures in ' + v.turn + ' turns.' : ({ outbreaks: 'Eight outbreaks.', cubes: 'A disease ran out of cubes.', cards: 'The player deck ran out.' }[v.over.why])) + '</p>' +
       '<div class="row" style="justify-content:center"><button class="btn primary" data-g="new">New game</button><button class="btn" data-go="study">Review</button></div>';
