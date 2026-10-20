@@ -21,10 +21,12 @@ const seedOf = (epi, players, g) => 100000 * epi + 10000 * players + g + 1;
 function runJob(job) {
   const res = [];
   for (let g = job.from; g < job.to; g++) {
+    const t0 = Date.now();
     const s = play(job.players, job.epi, seedOf(job.epi, job.players, g), job.width);
+    const ms = Date.now() - t0;
     const outs = [];
     s.log.forEach(e => { const m = /^Outbreak in (.+)!$/.exec(e.m); if (m) outs.push(D.IDX[m[1]]); });
-    res.push({ win: !!(s.over && s.over.win), why: s.over ? s.over.why : 'stuck', turn: s.turn, cured: s.cured.reduce((a, b) => a + b, 0), outs });
+    res.push({ win: !!(s.over && s.over.win), why: s.over ? s.over.why : 'stuck', turn: s.turn, cured: s.cured.reduce((a, b) => a + b, 0), outs, ms });
   }
   return res;
 }
@@ -67,11 +69,15 @@ if (process.argv[2] === '--child') {
       const why = {};
       r.forEach(x => { if (!x.win) why[x.why] = (why[x.why] || 0) + 1; x.outs.forEach(k => { out.outbreakCity[k]++; }); });
       const cured = r.reduce((a, x) => a + x.cured, 0) / r.length;
-      out.cells.push({ epidemics: c.epi, players: c.players, games: r.length, wins, why, cured: +cured.toFixed(2) });
-      if (!json) console.log(`epidemics ${c.epi} players ${c.players}: ${wins}/${r.length} = ${(100 * wins / r.length).toFixed(0)}%  cures ${cured.toFixed(2)}  lost by ${JSON.stringify(why)}`);
+      const sec = r.reduce((a, x) => a + x.ms, 0) / r.length / 1000;
+      out.cells.push({ epidemics: c.epi, players: c.players, games: r.length, wins, why, cured: +cured.toFixed(2), secPerGame: +sec.toFixed(2) });
+      if (!json) console.log(`epidemics ${c.epi} players ${c.players}: ${wins}/${r.length} = ${(100 * wins / r.length).toFixed(0)}%  cures ${cured.toFixed(2)}  lost by ${JSON.stringify(why)}  ${sec.toFixed(2)} s/game`);
     });
+    const all = [].concat(...results);
+    out.wins = all.filter(x => x.win).length; out.total = all.length;
+    out.secPerGame = +(all.reduce((a, x) => a + x.ms, 0) / all.length / 1000).toFixed(2);
     if (json) console.log(JSON.stringify(out));
-    else console.log('seconds', out.seconds);
+    else console.log(`total ${out.wins}/${out.total} = ${(100 * out.wins / out.total).toFixed(1)}%  ${out.secPerGame} s/game (in parallel)  seconds ${out.seconds}`);
   }
   launch();
 }
