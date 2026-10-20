@@ -164,11 +164,15 @@
       if (e.target === back || b) { back.remove(); if (b && b.dataset.c === 'yes') onYes(); }
     });
     document.body.appendChild(back);
+    return back;
   }
   function sheet(title, html, onClick, opts) {
     closeSheet();
     const back = document.createElement('div');
     back.className = 'sheet-back'; back.id = 'sheet';
+    // info sheets (a player's hand, the game menu) may stay open after the game ends; decision sheets may not
+    if (opts && opts.keep) back.dataset.keep = '1';
+    if (opts && opts.kind) back.dataset.kind = opts.kind;
     back.innerHTML = '<div class="sheet"><div class="row"><h3 class="grow">' + esc(title) + '</h3>' +
       (opts && opts.noClose ? '' : '<button class="btn small ghost" data-close>Close</button>') + '</div><div class="scroll" style="display:flex;flex-direction:column;gap:8px">' + html + '</div></div>';
     back.addEventListener('click', e => {
@@ -377,6 +381,7 @@
     if (lastSeen && fk !== flipKey && ((v.lastInf && v.lastInf.length) || (v.lastEpi && v.lastEpi.length) || (v.lastDraw && v.lastDraw.length))) showFlips(v);
     flipKey = fk;
     lastSeen = v;
+    dropStalePrompts(v);
     const myTurn = toAct.includes(ME);
     // reachable cities for the current move selection
     let reach = null;
@@ -400,6 +405,19 @@
     if (v.phase === 'forecast' && v.pend && v.pend.seat === ME && !$('#sheet')) forecastSheet(v);
     scheduleBots();
     if (myTurn && v.phase === 'actions' && v.cur === ME) turnCheckStart(v);
+  }
+
+  // a prompt opened for a decision the game no longer needs must not linger: the Forecast window once its
+  // move is made, and every decision sheet or event confirm once the game is over (online, someone else's
+  // infection can end the game while your Resilient Population or Airlift picker is still open)
+  function dropStalePrompts(v) {
+    const sh = $('#sheet');
+    if (sh && sh.dataset.kind === 'forecast' && !(v.phase === 'forecast' && v.pend && v.pend.seat === ME && !v.over)) closeSheet();
+    if (!v.over) return;
+    const sh2 = $('#sheet');
+    if (sh2 && !sh2.dataset.keep) closeSheet();
+    document.querySelectorAll('.confirm-back[data-decide]').forEach(b => b.remove());
+    ui.mode = null;
   }
 
   function renderStatus(v, odds) {
@@ -757,7 +775,7 @@
     const cards = v.hands[p].length ? '<div style="display:flex;flex-wrap:wrap;gap:6px">' + v.hands[p].map(c => A.cardHtml(c)).join('') + '</div>' : '<p class="muted small" style="margin:0">' + (v.handN[p] ? v.handN[p] + ' cards, kept hidden (Standard and Heroic rules). Ask them!' : 'No cards.') + '</p>';
     sheet(playerLabel(v, p) + ' · ' + r.name, '<div class="row">' + A.roleIcon(v.roles[p], 26) + '<p style="margin:0" class="small">' + esc(r.text) + '</p></div>' +
       '<div class="label">Hand</div>' + cards + (r.key === 'planner' && v.cp >= 0 ? '<div class="label">Kept event</div>' + A.cardHtml(v.cp) : '') +
-      '<p class="muted small" style="margin:0">In ' + esc(cname(v.pawns[p])) + '.</p>');
+      '<p class="muted small" style="margin:0">In ' + esc(cname(v.pawns[p])) + '.</p>', null, { keep: true });
   }
   function forecastSheet(v) {
     const order = v.pend.cards.slice();
@@ -771,7 +789,7 @@
       if (u) { const i = +u.dataset.up; [order[i - 1], order[i]] = [order[i], order[i - 1]]; sh.querySelector('.scroll').innerHTML = draw(); }
       if (d) { const i = +d.dataset.down; [order[i + 1], order[i]] = [order[i], order[i + 1]]; sh.querySelector('.scroll').innerHTML = draw(); }
       if (e.target.closest('[data-ok]')) { closeSheet(); act({ t: 'forecast', order }); }
-    }, { noClose: true });
+    }, { noClose: true, kind: 'forecast' });
   }
   function rpSheet(v) {
     sheet('Resilient Population: remove a card', v.idisc.slice().reverse().map(c => '<button class="btn" style="justify-content:flex-start" data-r="' + c + '">' + sw(CITIES[c].color) + esc(cname(c)) + ' ' + cubePips(v.cubes[c * 4 + CITIES[c].color], CITIES[c].color) + '</button>').join(''), e => {
@@ -783,8 +801,8 @@
     const toAct = table.toAct();
     if (!E.canPlayEventNow(v) || (table.online && !toAct.includes(ME))) { toast(table.online ? 'Events can be played when the game asks (before infections).' : 'Not right now'); return; }
     const e = EVENTS[card - 48];
-    if (card === EV.quiet) { confirmBox('Play One Quiet Night? The next infection step is skipped.', 'Play', () => act({ t: 'event', card })); return; }
-    if (card === EV.forecast) { confirmBox('Play Forecast? You will see the top 6 infection cards and put them back in any order.', 'Play', () => act({ t: 'event', card })); return; }
+    if (card === EV.quiet) { confirmBox('Play One Quiet Night? The next infection step is skipped.', 'Play', () => act({ t: 'event', card })).dataset.decide = '1'; return; }
+    if (card === EV.forecast) { confirmBox('Play Forecast? You will see the top 6 infection cards and put them back in any order.', 'Play', () => act({ t: 'event', card })).dataset.decide = '1'; return; }
     if (card === EV.resilient) { if (!v.idisc.length) { toast('The infection discard pile is empty'); return; } rpSheet(v); return; }
     if (card === EV.grant) { ui.mode = { card }; ui.sel = -1; renderPlay(); toast('Tap a city for the station'); return; }
     if (card === EV.airlift) {
@@ -909,7 +927,7 @@
       if (b.dataset.m === 'zoom') mapApi.reset();
       if (b.dataset.m === 'leave') confirmBox('Leave this game? A computer takes your seat.', 'Leave', leaveOnline);
       if (b.dataset.m === 'new') confirmBox('Start a new game? This one ends.', 'New game', () => { store.game = null; table = null; save(); resetSel(); renderPlay(); });
-    });
+    }, { keep: true });
   }
 
   // ================================================================== TABLE (real-table tracker)
