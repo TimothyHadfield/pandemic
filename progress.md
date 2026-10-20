@@ -50,7 +50,7 @@ First version is live: play Pandemic (2nd edition) with computer teammates or fr
 - Event timing edge cases online (two people with events at the same window).
 - Online: an uncaught FirebaseError `auth/network-request-failed` can come from an auth call in the shared `_online/online.js` with no catch (flaky network). Reported to the shared-module owner; not fixed here.
 - Hint speed on a real iPhone (laptop: about 60 ms average, up to about 360 ms).
-- Seen in `?autoplay` runs only: the Forecast sheet can open after the game is already over (won or lost). Not checked in a normal game; not fixed (behaviour, outside the design pass).
+- Online: a decision picker (Resilient Population, Airlift, event confirm) left open when someone else's infection ends the game now closes (reasoned from the code; not run with two people). The Forecast-after-game-over bug is fixed and tested (`tests/over-prompts.test.mjs`).
 
 ## Rejected / parked
 - ~~Chain-reaction odds~~: heavy maths, rarely changes a decision (docs/ideas.md #12).
