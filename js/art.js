@@ -248,7 +248,14 @@
           for (let j = 0; j < v.cubes[i * 4 + k]; j++, n++) html += '<rect x="' + (6 + (n % 3) * 6) + '" y="' + (4 + Math.floor(n / 3) * 6) + '" width="5" height="5" rx="1" fill="' + HEX[k] + '" stroke="#0b1420" stroke-width=".8"/>';
         }
         if (c.others.innerHTML !== html) c.others.innerHTML = html;
-        if (o.fresh && own > c.last[col]) { c.dot.classList.remove('newcube'); void c.dot.getBBox; c.dot.classList.add('newcube'); }
+        if (o.fresh && own > c.last[col]) {
+          c.dot.classList.remove('newcube'); void c.dot.getBBox;
+          // o.cubeAt: drop the cube in when its infection card flips (ms), not all at once
+          const at = o.cubeAt && o.cubeAt[i];
+          c.dot.style.animationDelay = at ? at + 'ms' : '';
+          c.dot.style.animationFillMode = at ? 'none' : '';
+          c.dot.classList.add('newcube');
+        }
         for (let k = 0; k < 4; k++) c.last[k] = v.cubes[i * 4 + k];
         // risk ring: chance this city is infected in the next Infect step
         const r = o.risk ? o.risk[i] : 0;
@@ -261,10 +268,14 @@
       });
       reachG.innerHTML = '';
       if (o.reach) o.reach.forEach(i => { const c = D.CITIES[i]; el('circle', { class: 'reach', cx: c.x, cy: c.y, r: 13 * Math.min(Math.max(1, 0.62 / scale), 1.7) }, reachG); });
-      (o.boom || []).forEach(i => {
+      // o.boom: city numbers, or {city, at: ms} to ring each outbreak of a chain in turn
+      (o.boom || []).forEach(x => {
+        const i = typeof x === 'object' ? x.city : x, at = typeof x === 'object' ? x.at || 0 : 0;
         const c = D.CITIES[i];
-        const b = el('circle', { class: 'boom', cx: c.x, cy: c.y, r: 16, fill: 'none', stroke: '#ff6b6b', 'stroke-width': 4 }, fxG);
-        setTimeout(() => b.remove(), 1200);
+        setTimeout(() => {
+          const b = el('circle', { class: 'boom', cx: c.x, cy: c.y, r: 16, fill: 'none', stroke: '#ff6b6b', 'stroke-width': 4 }, fxG);
+          setTimeout(() => b.remove(), 1200);
+        }, at);
       });
       sizeThings();
     }

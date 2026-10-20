@@ -13,6 +13,20 @@
   const cname = c => CITIES[c].name;
   const LEVEL_NOTE = { 4: 'Introductory', 5: 'Standard', 6: 'Heroic' };
 
+  // ------------------------------------------------------------------ sounds, celebrations, animations (js/fx.js, js/sfx.js)
+  const FX = window.FX;
+  FX.init({ game: 'pandemic', accent: '#6ea8fe' });
+  // the game's own CSS motion (cards, flips, cubes, pawns) follows the Animations and Speed settings too
+  function fxClasses() {
+    const st = FX.settings, h = document.documentElement.classList;
+    h.toggle('fx-still', !st.animations);
+    h.toggle('fx-fast', st.animations && st.animSpeed === 'fast');
+  }
+  fxClasses();
+  FX.onChange(fxClasses);
+  const flipStep = () => (FX.settings.animSpeed === 'fast' ? 77 : 140);
+  const fxCol = c => (c === 2 ? '#b8bccb' : HEX[c]);
+
   // ------------------------------------------------------------------ saved data
   const KEY = 'pandemic-lab-v1';
   const DEF = { name: '', players: 2, epidemics: 5, role: -1, speed: 'normal', showOdds: true, eventPause: true, openHands: 'auto', hints: true };
@@ -121,7 +135,7 @@
     const name = store.settings.name || 'Player';
     const codeEl = $('#on-code');
     const code = codeEl ? codeEl.value.trim().toUpperCase() : '';
-    if (k === 'join' && code.length !== 5) { toast('Room codes have 5 letters'); return; }
+    if (k === 'join' && code.length !== 5) { oops('Room codes have 5 letters'); return; }
     if (net.connecting) return;
     net.connecting = true; renderPlay();
     let r;
@@ -154,6 +168,8 @@
     document.body.appendChild(t);
     setTimeout(() => t.remove(), 2400);
   }
+  // a toast for something that isn't allowed: with a soft error sound
+  function oops(msg) { toast(msg); FX.play('error'); }
   function confirmBox(msg, yes, onYes) {
     const back = document.createElement('div');
     back.className = 'confirm-back';
@@ -200,6 +216,7 @@
     document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
     document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + tab));
     if (tab === 'play' && mapApi) mapApi.reset(true); // back on Play: the map is in auto
+    if (tab === 'play') fxQuiet = true; // no catch-up burst of sounds for moves made while another tab was open
     if (push) try { history.pushState({ tab }, '', '#' + tab); } catch (e) { /* file:// */ }
     render();
   }
@@ -318,10 +335,12 @@
     table = new LocalTable(state);
     resetSel(); lastSeen = null; ui.check = null;
     save();
+    FX.play('shuffle');
     renderPlay();
   }
 
   // ---------------------------------------------------------------- the game screen
+  let fxQuiet = false;
   let mapApi = null, mapBox = null, lastSeen = null, botTimer = null, flipTimer = null, flipKey = null;
   function ensureMap() {
     if (mapBox) return;
@@ -376,7 +395,10 @@
     const odds = oddsFor(v);
     const fresh = lastSeen && lastSeen.turn === v.turn ? false : true;
     // what changed since the last screen (for motion)
-    const boom = v.lastOut && v.lastOut.length && v !== lastSeen ? v.lastOut : [];
+    // what happened since the last screen: sounds + motion, timed like the flip strip (nothing on a reload)
+    const fx = lastSeen && !fxQuiet ? PanSfx.events(lastSeen, v, ME, { step: flipStep() }) : null;
+    fxQuiet = false;
+    const boom = fx ? fx.booms : [];
     // flips show once, when the move that made them arrives (not on every tap, not after a reload)
     const fk = v.turn + ':' + v.log.length + ':' + v.phase;
     if (lastSeen && fk !== flipKey && ((v.lastInf && v.lastInf.length) || (v.lastEpi && v.lastEpi.length) || (v.lastDraw && v.lastDraw.length))) showFlips(v);
@@ -393,7 +415,7 @@
         if (a.to !== undefined && (a.who === undefined || a.who === who) && ['drive', 'shuttle', 'dispatch'].includes(a.t)) reach.add(a.to);
       });
     }
-    mapApi.update(v, { sel: ui.sel, reach, risk: store.settings.showOdds ? odds.draw : null, boom, fresh: true });
+    mapApi.update(v, { sel: ui.sel, reach, risk: store.settings.showOdds ? odds.draw : null, boom, cubeAt: fx ? fx.cubeAt : null, fresh: true });
     renderStatus(v, odds);
     renderInfo(v, odds, toAct);
     renderRisk(v, odds);
@@ -402,6 +424,7 @@
     renderActs(v, toAct);
     renderSide(v, odds);
     if (v.over) showEnd(v);
+    if (fx) runFx(fx.items);
     // forecast: open the sheet for whoever played it
     if (v.phase === 'forecast' && v.pend && v.pend.seat === ME && !$('#sheet')) forecastSheet(v);
     scheduleBots();
@@ -633,9 +656,40 @@
     if (!items.length) return;
     const strip = document.createElement('div');
     strip.className = 'flipstrip';
-    strip.innerHTML = items.slice(0, 6).map((x, i) => '<div class="fc ' + x.cls + '" style="animation-delay:' + i * 140 + 'ms">' + (x.col !== undefined ? sw(x.col) : '') + esc(x.t) + '</div>').join('');
+    const step = flipStep();
+    strip.innerHTML = items.slice(0, 6).map((x, i) => '<div class="fc ' + x.cls + '" style="animation-delay:' + i * step + 'ms">' + (x.col !== undefined ? sw(x.col) : '') + esc(x.t) + '</div>').join('');
     document.body.appendChild(strip);
-    flipTimer = setTimeout(() => strip.remove(), 2200 + items.length * 140);
+    flipTimer = setTimeout(() => strip.remove(), 2200 + items.length * step);
+  }
+
+  // play one timed list from PanSfx.events: sounds always (if on), motion only on the game screen
+  function runFx(items) {
+    items.forEach(x => { if (x.at > 0) setTimeout(() => fxItem(x), x.at); else fxItem(x); });
+  }
+  const shown = el => el && el.getClientRects().length > 0;
+  const infoEl = () => [$('#g-info2'), $('#g-info')].filter(shown)[0];
+  const vialEl = col => document.querySelectorAll('#g-status .vial')[col];
+  function cityEl(c) {
+    const el = mapBox && mapBox.querySelectorAll('g.city')[c];
+    if (!el) return null;
+    const r = el.getBoundingClientRect(), m = mapBox.getBoundingClientRect();
+    return r.left >= m.left && r.right <= m.right && r.top >= m.top && r.bottom <= m.bottom ? el : null; // zoomed away: skip
+  }
+  function fxItem(x) {
+    if (x.sound) FX.play(x.sound, x.pitch ? { pitch: x.pitch } : undefined);
+    const live = ui.tab === 'play' && !!$('#game');
+    if (x.celebrate === 'big') FX.celebrate({ kind: 'big', at: live ? vialEl(x.col) : null, colors: [fxCol(x.col), '#ffffff', '#f0b354'] });
+    else if (x.celebrate) FX.celebrate({ kind: x.celebrate, colors: x.celebrate === 'win' ? [HEX[0], HEX[1], HEX[3], '#6ee7a8', '#e8eaf0', '#f0b354'] : undefined });
+    if (!live || !x.anim) return;
+    if (x.anim === 'outbreak') {
+      FX.shake(mapBox);
+      const st = $('#g-status .stat');
+      // the counter sits at the top edge: the "+1" rises from just below it onto it
+      if (st) { FX.pop(st); const r = st.getBoundingClientRect(); FX.floatText({ getBoundingClientRect: () => ({ left: r.left, top: r.top + 34, width: r.width, height: r.height }) }, '+1', 'var(--bad)'); }
+    } else if (x.anim === 'epidemic') { FX.flash(mapBox, '#e5484d'); FX.shake(mapBox); }
+    else if (x.anim === 'treat') { const el = cityEl(x.city); if (el) FX.floatText(el, '−' + x.n, fxCol(x.col)); }
+    else if (x.anim === 'erad') { const vl = vialEl(x.col); if (vl) FX.pop(vl); }
+    else if (x.anim === 'myturn') { const el = infoEl(); if (el) FX.flash(el, 'var(--accent-warm)'); }
   }
   function showEnd(v) {
     if (showEnd.done === v.turn + ':' + v.over.why) return;
@@ -667,11 +721,11 @@
     if (!table.online && a.t !== 'event' && v.phase === 'actions' && v.cur === ME) turnCheckEnd(a);
     if (table.online) {
       ui.busy = true;
-      net.room.act(a).then(r => { if (r && r.ok === false) { ui.busy = false; toast(r.message); } });
+      net.room.act(a).then(r => { if (r && r.ok === false) { ui.busy = false; oops(r.message); } });
       resetSel();
       return;
     }
-    try { table.act(seat, a); } catch (e) { toast(e.message || 'Not allowed'); return; }
+    try { table.act(seat, a); } catch (e) { oops(e.message || 'Not allowed'); return; }
     if (a.t !== 'event' || ui.mode) resetSel();
     ui.hint = null;
     renderPlay();
@@ -800,11 +854,11 @@
   }
   function eventStart(v, card) {
     const toAct = table.toAct();
-    if (!E.canPlayEventNow(v) || (table.online && !toAct.includes(ME))) { toast(table.online ? 'Events can be played when the game asks (before infections).' : 'Not right now'); return; }
+    if (!E.canPlayEventNow(v) || (table.online && !toAct.includes(ME))) { oops(table.online ? 'Events can be played when the game asks (before infections).' : 'Not right now'); return; }
     const e = EVENTS[card - 48];
     if (card === EV.quiet) { confirmBox('Play One Quiet Night? The next infection step is skipped.', 'Play', () => act({ t: 'event', card })).dataset.decide = '1'; return; }
     if (card === EV.forecast) { confirmBox('Play Forecast? You will see the top 6 infection cards and put them back in any order.', 'Play', () => act({ t: 'event', card })).dataset.decide = '1'; return; }
-    if (card === EV.resilient) { if (!v.idisc.length) { toast('The infection discard pile is empty'); return; } rpSheet(v); return; }
+    if (card === EV.resilient) { if (!v.idisc.length) { oops('The infection discard pile is empty'); return; } rpSheet(v); return; }
     if (card === EV.grant) { ui.mode = { card }; ui.sel = -1; renderPlay(); toast('Tap a city for the station'); return; }
     if (card === EV.airlift) {
       sheet('Airlift: whose pawn?', v.pawns.map((_, p) => '<button class="btn" style="justify-content:flex-start" data-p="' + p + '">' + A.roleIcon(v.roles[p], 16) + esc(playerLabel(v, p)) + ' <span class="muted">in ' + esc(cname(v.pawns[p])) + '</span></button>').join(''), ev => {
@@ -1004,15 +1058,15 @@
     if (t.mode === 'treat') {
       const k = c * 4 + CITIES[c].color;
       if (!t.cubes[k]) return;
-      trPush(t); t.cubes[k]--; save(); renderTable(); return;
+      trPush(t); t.cubes[k]--; FX.play('pop'); save(); renderTable(); return;
     }
     if (t.mode === 'rp') {
-      if (!t.idisc.includes(c)) { toast('Pick a card from the discard pile'); return; }
-      trPush(t); t.idisc.splice(t.idisc.indexOf(c), 1); t.iremoved.push(c); t.mode = 'draw'; save(); renderTable(); return;
+      if (!t.idisc.includes(c)) { oops('Pick a card from the discard pile'); return; }
+      trPush(t); t.idisc.splice(t.idisc.indexOf(c), 1); t.iremoved.push(c); t.mode = 'draw'; FX.play('cardSlide'); save(); renderTable(); return;
     }
     if (t.mode === 'forecast') {
       if (t.idisc.includes(c) || t.fq.includes(c)) return;
-      t.fq.push(c);
+      t.fq.push(c); FX.play('cardFlip');
       if (t.fq.length === Math.min(6, 48 - t.idisc.length - t.iremoved.length)) {
         trPush(t);
         t.fq.forEach(x => { t.layers.forEach(L => { const i = L.indexOf(x); if (i >= 0) L.splice(i, 1); }); });
@@ -1023,8 +1077,9 @@
     }
     if (t.mode === 'epi') {
       // bottom card: must be from the lowest part of the deck
-      if (t.idisc.includes(c)) { toast(cname(c) + ' is in the discard pile, so it can’t be the bottom card'); return; }
+      if (t.idisc.includes(c)) { oops(cname(c) + ' is in the discard pile, so it can’t be the bottom card'); return; }
       trPush(t);
+      const o0 = t.outbreaks, k0 = t.cubes[c * 4 + CITIES[c].color];
       t.layers.forEach(L => { const i = L.indexOf(c); if (i >= 0) L.splice(i, 1); });
       t.layers = t.layers.filter(L => L.length);
       t.rate = Math.min(6, t.rate + 1);
@@ -1035,17 +1090,29 @@
       t.epiLeft--;
       t.mode = t.epiLeft > 0 ? 'epi' : 'draw';
       trEpiIfNoDeck(t);
+      trSounds(t, c, o0, k0, 3);
       flash(c); save(); renderTable(); return;
     }
     // draw mode: an infection card was flipped
-    if (t.idisc.includes(c)) { toast(cname(c) + ' is already in the discard pile'); return; }
-    if (!trTakeTop(t, c)) { toast(cname(c) + ' can’t be on top: the cards on top are the ones shuffled back after the last Epidemic'); return; }
+    if (t.idisc.includes(c)) { oops(cname(c) + ' is already in the discard pile'); return; }
+    if (!trTakeTop(t, c)) { oops(cname(c) + ' can’t be on top: the cards on top are the ones shuffled back after the last Epidemic'); return; }
     trPush(t);
+    const o0 = t.outbreaks, k0 = t.cubes[c * 4 + CITIES[c].color];
     if (t.setup > 0) { t.cubes[c * 4 + CITIES[c].color] = Math.ceil(t.setup / 3); t.setup--; }
     else trInfect(t, c, 1, []);
     t.idisc.push(c);
     t.after = false;
+    trSounds(t, c, o0, k0, 0);
     flash(c); save(); renderTable();
+  }
+  // tracker: the card flips, its cubes knock down (or the city breaks out), an Epidemic reshuffles the pile
+  function trSounds(t, c, o0, k0, epi) {
+    const at = (ms, f) => (ms ? setTimeout(f, ms) : f());
+    FX.play('cardFlip');
+    const outs = t.outbreaks - o0;
+    if (!outs && t.cubes[c * 4 + CITIES[c].color] > k0) at(110, () => FX.play('place', epi ? { pitch: 0.85 } : undefined));
+    for (let i = 0; i < Math.min(outs, 6); i++) at(180 + i * 260, () => FX.play('explosion'));
+    if (epi) at(650, () => FX.play('shuffle'));
   }
   // an Epidemic with no infection cards left to flip from the bottom: raise the rate and shuffle the discard back on top
   function trEpiIfNoDeck(t) {
@@ -1106,20 +1173,22 @@
     if (c) { trTap(+c.dataset.tc); return; }
     const m = e.target.closest('[data-mode]');
     if (m) {
-      if (t.mode === 'epi' && m.dataset.mode !== 'epi') { toast('Tap the Epidemic’s bottom card first (or Undo)'); return; }
+      if (t.mode === 'epi' && m.dataset.mode !== 'epi') { oops('Tap the Epidemic’s bottom card first (or Undo)'); return; }
       t.mode = m.dataset.mode; t.fq = []; save(); renderTable(); return;
     }
     const b = e.target.closest('[data-t]');
     if (!b) return;
     const k = b.dataset.t;
-    if (k === 'undo' && t.undo.length) { const prev = t.undo.pop(); const u = t.undo; store.table = Object.assign(prev, { undo: u }); save(); renderTable(); }
+    if (k === 'undo' && t.undo.length) { const prev = t.undo.pop(); const u = t.undo; store.table = Object.assign(prev, { undo: u }); FX.play('cardSlide'); save(); renderTable(); }
     else if (k === 'drew0' || k === 'drew1' || k === 'drew2') {
       const n = +k.slice(4);
       const left = t.piles.reduce((a, b2) => a + b2, 0) - t.drawn;
-      if (left < 2) { toast('The player deck is empty: the team loses.'); return; }
-      if (t.mode === 'epi') { toast('Tap the Epidemic’s bottom card first (or Undo)'); return; }
-      if (t.epiDrawn + n > t.epidemics) { toast(t.epiDrawn >= t.epidemics ? 'All ' + t.epidemics + ' Epidemics are already out.' : 'Only ' + (t.epidemics - t.epiDrawn) + ' Epidemic left in this setup.'); return; }
+      if (left < 2) { oops('The player deck is empty: the team loses.'); return; }
+      if (t.mode === 'epi') { oops('Tap the Epidemic’s bottom card first (or Undo)'); return; }
+      if (t.epiDrawn + n > t.epidemics) { oops(t.epiDrawn >= t.epidemics ? 'All ' + t.epidemics + ' Epidemics are already out.' : 'Only ' + (t.epidemics - t.epiDrawn) + ' Epidemic left in this setup.'); return; }
       trPush(t); t.drawn += 2; t.epiDrawn += n; t.after = true;
+      FX.play('cardDeal'); setTimeout(() => FX.play('cardDeal'), flipStep());
+      if (n) setTimeout(() => FX.play('alarm'), 2 * flipStep());
       if (n) { t.mode = 'epi'; t.epiLeft = n; trEpiIfNoDeck(t); }
       save(); renderTable();
     } else if (k === 'setup') {
@@ -1137,7 +1206,7 @@
         if (!x) return;
         closeSheet();
         if (x.dataset.x === 'new') { vTable.querySelector('[data-t="setup"]').click(); return; }
-        if (t.mode === 'epi') { toast('Tap the Epidemic’s bottom card first (or Undo)'); return; }
+        if (t.mode === 'epi') { oops('Tap the Epidemic’s bottom card first (or Undo)'); return; }
         t.mode = x.dataset.x === 'rp' ? 'rp' : 'forecast'; t.fq = []; save(); renderTable();
       });
     }
@@ -1209,8 +1278,10 @@
       '<div class="setrow"><div class="grow"><b>Pause for my events</b><span>Stop before each infection if you hold an event.</span></div>' + swc('eventPause', s.eventPause) + '</div>' +
       '<div class="setrow"><div class="grow"><b>Hands</b><span>Rulebook: face up only in Introductory games.</span></div><select id="s-open"><option value="auto"' + (s.openHands === 'auto' ? ' selected' : '') + '>Rulebook</option><option value="open"' + (s.openHands === 'open' ? ' selected' : '') + '>Always open</option><option value="hidden"' + (s.openHands === 'hidden' ? ' selected' : '') + '>Always hidden</option></select></div>' +
       '<div class="setrow"><div class="grow"><b>Computer speed</b></div><div class="seg" data-sset="speed" style="min-width:200px">' + ['slow', 'normal', 'fast'].map(k => '<button aria-pressed="' + (s.speed === k) + '" data-v="' + k + '" style="min-height:36px">' + k[0].toUpperCase() + k.slice(1) + '</button>').join('') + '</div></div></div>' +
+      '<div class="panel"><span class="label">Sound &amp; effects</span><div id="s-fx"></div></div>' +
       '<div class="panel"><div class="setrow"><div class="grow"><b>Start over</b><span>Clears the saved game and the table tracker.</span></div><button class="btn small" data-reset>Clear</button></div></div>' +
       '<p class="ver">Pandemic Lab · rules of the 2013 second edition · our own art · <a href="../">all games</a></p></div>';
+    FX.renderSettings($('#s-fx'));
   }
   vSet.addEventListener('change', e => {
     const t = e.target;

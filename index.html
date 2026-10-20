@@ -316,6 +316,29 @@
   .setrow .grow span { font-size: 12.5px; color: var(--muted); }
   .setrow + .setrow { border-top: 1px solid #232839; padding-top: 8px; }
   .ver { color: #59607a; font-size: 12px; text-align: center; }
+  /* Sound & effects rows (js/fx.js) in the same look as .setrow */
+  .fx-set .fx-row { min-height: 46px; padding: 8px 0 0; border-top: 1px solid #232839; gap: 10px; }
+  .fx-set .fx-row:first-child { border-top: 0; }
+  .fx-set .fx-lab { font-weight: 650; }
+  .fx-set .fx-why { font-size: 12.5px; color: var(--muted); }
+  .fx-set .switch { width: 48px; height: 28px; }
+  .fx-set .switch span { background: #2f3548; border-radius: 14px; }
+  .fx-set .switch span::after { width: 22px; height: 22px; }
+  .fx-set .switch input:checked + span { background: var(--accent); }
+  .fx-set .switch input:checked + span::after { transform: translateX(20px); }
+  .fx-set .seg { min-width: 200px; gap: 6px; background: none; border: 0; padding: 0; }
+  .fx-set .seg button { flex: 1; min-height: 36px; background: var(--bg-soft); border: 1px solid var(--line); border-radius: 10px; color: var(--text); font-size: 14px; padding: 4px 6px; }
+  .fx-set .seg button[aria-pressed="true"] { background: rgba(110,168,254,.14); border-color: var(--accent); color: var(--accent); }
+  .fx-set .q { width: 20px; height: 20px; background: var(--bg-soft); font-size: 12px; }
+  .fx-set .fx-test { min-height: 36px; }
+  /* Animations off: the game's own motion is instant too; Fast: about half as long */
+  html.fx-still *, html.fx-still *::before, html.fx-still *::after { animation-duration: 0s !important; animation-delay: 0s !important; transition-duration: 0s !important; }
+  html.fx-fast .pc.deal { animation-duration: .18s; }
+  html.fx-fast .flipstrip .fc { animation-duration: .22s; }
+  html.fx-fast svg .newcube { animation-duration: .25s; }
+  html.fx-fast svg .boom { animation-duration: .6s; }
+  html.fx-fast svg .pawn { transition-duration: .3s; }
+  html.fx-fast .banner { animation-duration: .17s; }
   .ver a { color: #59607a; white-space: nowrap; }
   .banner { position: fixed; left: 50%; top: 40%; transform: translate(-50%, -50%); z-index: 60; background: #1d2231; border: 1px solid var(--line); border-radius: 16px; padding: 20px 24px; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,.6), 0 0 0 100vmax rgba(5,7,12,.4); animation: pop .3s ease-out; min-width: 270px; }
   .banner h2 { margin: 0 0 6px; font-size: 26px; }
@@ -345,6 +368,7 @@
   <section class="view" id="v-settings"></section>
 </div>
 
+<script src="js/fx.js?v=1"></script>
 <script src="js/data.js?v=4"></script>
 <script src="js/map-data.js?v=1"></script>
 <script src="js/engine.js?v=3"></script>
@@ -352,7 +376,8 @@
 <script src="js/bots.js?v=3"></script>
 <script src="js/online-game.js?v=3"></script>
 <script src="js/strength-data.js?v=3"></script>
-<script src="js/art.js?v=6"></script>
-<script src="js/app.js?v=5"></script>
+<script src="js/sfx.js?v=1"></script>
+<script src="js/art.js?v=7"></script>
+<script src="js/app.js?v=6"></script>
 </body>
 </html>
