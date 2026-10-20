@@ -12,12 +12,13 @@ First version is live: play Pandemic (2nd edition) with computer teammates or fr
 |---|---|
 | Rules engine (48 cities, 93 links, 7 roles, 5 events, 4/5/6 Epidemics, rate track, outbreaks, 24 cubes) | Done, 23 node tests |
 | Exact odds (infection per city, Epidemic in the next 2 cards, after an Epidemic, outbreak risk) | Done; matches 6000 simulated games; exact bottom-card test |
-| Computer teammates + planner (Hint) + points lost | Done; a builder was improving strength (branch `bots`) |
+| Computer teammates + planner (Hint) + points lost | Done; route-based turn search (branch `bots`, merged). Team win rate, 200 games per box (2/3/4 players): Introductory 56/42/30%, Standard 35/24/14%, Heroic 22/12/5% (same seeds before the new search: about 23/12/10% at Standard) |
 | Play screen (phone + laptop) | Done |
 | Online rooms (shared module, co-op) | Done; two-browser check passes on the real project |
 | Table tab (real-table tracker) | Done |
-| Study tab (win rates, danger map, last game chart, points lost) | Done (win-rate table needs `js/strength-data.js` filled) |
+| Study tab (win rates, danger map, last game chart, points lost) | Done (`js/strength-data.js` rebuilt with `node tools/build-strength.js 200`, about 12 min) |
 | Settings | Done |
+| QA pass (2026-10-20) | 11 findings fixed: broken saves (game or tracker) start fresh instead of a blank tab; flip strip shows once (not on taps or reload); typed `#tab` addresses and Back work, Back with a sheet open only closes it; tracker blocks Flip/Treat mid-Epidemic, refuses more Epidemics than the setup has, resolves an Epidemic with an empty infection deck; Dispatcher row wraps at 393 px; 3–4 player chips show role only for computers; own Forecast prompt. Re-checked with the QA scripts in the scratchpad (qa1, flip4, disp4 screenshot) |
 
 ## Authorized next steps
 - 2026-10-20 (games brief): finish phase 2 for Pandemic: rules check, ideas, QA pass, live verification.
@@ -46,6 +47,8 @@ First version is live: play Pandemic (2nd edition) with computer teammates or fr
 - Three- and four-person online rooms (tested two people).
 - Host leaving mid-game with another person taking over (shared module feature; not tested for Pandemic).
 - Event timing edge cases online (two people with events at the same window).
+- Online: an uncaught FirebaseError `auth/network-request-failed` can come from an auth call in the shared `_online/online.js` with no catch (flaky network). Reported to the shared-module owner; not fixed here.
+- Hint speed on a real iPhone (laptop: about 60 ms average, up to about 360 ms).
 
 ## Rejected / parked
 - ~~Chain-reaction odds~~: heavy maths, rarely changes a decision (docs/ideas.md #12).

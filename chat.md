@@ -5,3 +5,4 @@
 - **Built:** engine + exact odds + computer teammates + planner; screens Play / Table / Study / Settings; online rooms; tests; rules check with sources; ideas list.
 - **Verified:** see progress.md (tests, mutation checks, phone-view 393 px + laptop, a whole game in WebKit, two-browser online run).
 - **Open:** see progress.md NOT verified.
+- **Later the same day:** merged the stronger computer teammates (route-based turn search; about 14% → 28% overall over 300 fixed games), rebuilt the win-rate table, and fixed the 11 QA findings (see progress.md Status).
