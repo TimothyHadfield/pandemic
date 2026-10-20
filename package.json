@@ -1,0 +1,11 @@
+{
+  "name": "pandemic-lab",
+  "private": true,
+  "description": "Dev-only tools. The site itself has no build step.",
+  "scripts": {
+    "build-map": "node tools/build-map.js"
+  },
+  "devDependencies": {
+    "d3-geo": "^3.1.1"
+  }
+}

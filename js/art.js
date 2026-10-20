@@ -8,19 +8,11 @@
   const LIGHT = ['#9cc0ff', '#ffe08a', '#a7abbd', '#ff9a9d'];
   const W = 1000, H = 500;
 
-  // low-poly continents, drawn by hand on our 1000 x 500 board
-  const LAND = [
-    'M18 70 L95 42 L190 36 L262 48 L318 78 L334 112 L322 150 L300 182 L262 205 L232 232 L214 262 L196 300 L168 300 L128 290 L96 262 L60 228 L32 196 L14 140 Z', // North America
-    'M206 296 L252 286 L292 308 L340 342 L370 376 L352 404 L318 432 L286 470 L248 492 L222 486 L206 448 L190 404 L182 360 Z', // South America
-    'M392 86 L440 62 L512 52 L578 48 L640 56 L650 100 L622 140 L584 160 L548 166 L518 176 L478 180 L446 198 L398 200 L384 160 L388 120 Z', // Europe
-    'M432 206 L478 196 L530 200 L584 208 L620 238 L636 280 L626 330 L612 380 L590 430 L560 456 L532 448 L516 404 L500 350 L470 330 L436 306 L420 262 Z', // Africa
-    'M600 58 L700 40 L800 46 L880 62 L948 86 L992 120 L1000 160 L1000 205 L960 222 L928 236 L916 288 L894 320 L860 346 L826 362 L794 372 L770 340 L748 318 L716 316 L684 300 L660 312 L622 262 L604 214 L620 176 L652 150 L630 120 Z', // Asia
-    'M958 150 L990 160 L1000 196 L996 250 L970 262 L956 236 L962 196 Z', // Japan
-    'M808 380 L862 372 L896 386 L900 410 L860 418 L820 412 Z', // Indonesia
-    'M936 300 L968 306 L978 340 L962 358 L940 346 Z', // Philippines
-    'M870 428 L930 414 L984 426 L1000 452 L992 488 L940 498 L890 490 L862 466 Z', // Australia
-    'M408 92 L428 84 L440 104 L430 128 L410 122 Z', // Britain
-  ];
+  // real coastlines (Natural Earth, public domain), built by tools/build-map.js into js/map-data.js
+  const MAP = root.PanMap || { land: '', lakes: '', labelUp: [] };
+  const LABEL_UP = new Set(MAP.labelUp);
+  // a label sits under its city, or above it where the map builder found a clash below
+  const lblY = (i, off, fs) => D.CITIES[i].y + (LABEL_UP.has(i) ? fs * 0.75 - off : off);
 
   function el(tag, attrs, parent) {
     const e = document.createElementNS(NS, tag);
@@ -89,8 +81,8 @@
     const grid = el('g', { stroke: '#1d3a57', 'stroke-width': 1, opacity: .55 }, svg);
     for (let x = -350; x < W + 400; x += 100) el('line', { x1: x, y1: -1000, x2: x, y2: H + 1000 }, grid);
     for (let y = -350; y < H + 400; y += 100) el('line', { x1: -2000, y1: y, x2: W + 2000, y2: y }, grid);
-    const land = el('g', { fill: '#1a2c38', stroke: '#2a4456', 'stroke-width': 1.5, 'stroke-linejoin': 'round' }, svg);
-    LAND.forEach(d => el('path', { d }, land));
+    el('path', { d: MAP.land, fill: '#1a2c38', stroke: '#2a4456', 'stroke-width': 1, 'stroke-linejoin': 'round' }, svg);
+    el('path', { d: MAP.lakes, fill: 'url(#oc)', stroke: '#2a4456', 'stroke-width': .8 }, svg);
     // links (the three across the Pacific run off the edges)
     const links = el('g', {}, svg);
     const wrap = new Set(D.WRAP.map(([a, b]) => D.IDX[a] + '-' + D.IDX[b]));
@@ -117,7 +109,7 @@
       const sel = el('circle', { class: 'ring-sel', r: 14, visibility: 'hidden' }, g);
       const cnt = el('text', { class: 'cnt' + (c.color === 1 ? ' dk' : ''), 'font-size': 11, y: 0.5 }, g);
       const others = el('g', {}, g);
-      const lbl = el('text', { class: 'lbl', x: c.x, y: c.y + 21, 'text-anchor': 'middle', 'font-size': 11 }, lblG);
+      const lbl = el('text', { class: 'lbl', x: c.x, y: lblY(c.i, 21, 11), 'text-anchor': 'middle', 'font-size': 11 }, lblG);
       lbl.textContent = c.name;
       const risk = el('circle', { class: 'riskring', cx: c.x, cy: c.y, r: 12, visibility: 'hidden' }, riskG);
       return { g, station, dot, sel, cnt, others, lbl, risk, last: [0, 0, 0, 0] };
@@ -168,7 +160,7 @@
         const important = last && last.sel === i;
         c.lbl.setAttribute('visibility', showAll || important ? 'visible' : 'hidden');
         c.lbl.setAttribute('font-size', showAll ? 11 : 8 / scale);
-        c.lbl.setAttribute('y', D.CITIES[i].y + (showAll ? 21 : 13 / scale + 8));
+        c.lbl.setAttribute('y', showAll ? lblY(i, 21, 11) : lblY(i, 13 / scale + 8, 8 / scale));
       });
       pawnK = Math.min(k, 1.8);
       placePawns();
@@ -319,7 +311,7 @@
   // a small static board for Study (heat per city)
   function heatMap(values, maxV) {
     let s = '<svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;display:block;background:#0a1626;border-radius:10px">';
-    s += '<g fill="#1a2c38" stroke="#2a4456" stroke-width="1.5">' + LAND.map(d => '<path d="' + d + '"/>').join('') + '</g>';
+    s += '<path fill="#1a2c38" stroke="#2a4456" stroke-width="1" d="' + MAP.land + '"/><path fill="#0a1626" stroke="#2a4456" stroke-width=".8" d="' + MAP.lakes + '"/>';
     s += '<g stroke="#7f95b5" stroke-opacity=".25" stroke-width="1.4">';
     D.LINKS.forEach(([a, b]) => { const A = D.CITIES[D.IDX[a]], B = D.CITIES[D.IDX[b]]; if (Math.abs(A.x - B.x) < 500) s += '<line x1="' + A.x + '" y1="' + A.y + '" x2="' + B.x + '" y2="' + B.y + '"/>'; });
     s += '</g>';

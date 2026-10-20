@@ -1,2 +1,5 @@
 .claude/
 node_modules/
+
+# Natural Earth downloads for tools/build-map.js
+tools/.ne-cache/
