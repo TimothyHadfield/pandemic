@@ -135,6 +135,8 @@
   function resetSel() { ui.sel = -1; ui.who = -1; ui.card = -1; ui.mode = null; ui.hint = null; ui.discardPick = -1; }
 
   // ------------------------------------------------------------------ small helpers
+  // write HTML only when it changed, so buttons aren't replaced under a finger (online updates arrive often)
+  function put(el, html) { if (el && el._h !== html) { el.innerHTML = html; el._h = html; } }
   const qBtn = text => '<button class="q" data-q="' + esc(text) + '" aria-label="Why?">?</button>';
   function toast(msg) {
     document.querySelectorAll('.toast').forEach(t => t.remove());
@@ -231,7 +233,7 @@
       return c ? Math.round(100 * c.wins / c.games) + '% computer wins' : '';
     };
     const lvQ = 'More Epidemic cards means the infection speeds up sooner and more often. The % is how often a team of our computer players wins at this level with ' + s.players + ' players (measured over many games).';
-    vPlay.innerHTML = '<div class="setup">' +
+    put(vPlay, '<div class="setup">' +
       '<div class="hero"><img src="icon.svg" alt=""><div><h1>Pandemic Lab</h1><p>Save the world with computer teammates or friends. Exact odds every turn.</p></div></div>' +
       '<div class="panel">' +
       '<div class="label">Players</div><div class="seg" data-set="players">' + [2, 3, 4].map(n => '<button aria-pressed="' + (s.players === n) + '" data-v="' + n + '">' + n + '</button>').join('') + '</div>' +
@@ -244,7 +246,7 @@
       '<button class="btn" data-on="open" style="width:100%">Play online with friends</button>' +
       '</div>' +
       (store.last ? '<button class="btn ghost" data-go="study">Review your last game</button>' : '') +
-      '</div>';
+      '</div>');
   }
 
   function renderOnline() {
@@ -256,7 +258,7 @@
     else if (st === 'lobby') {
       const host = s.isHost, o = s.options || {};
       const seats = s.seats.map((x, i) => {
-        const who = x.kind === 'human' ? esc(x.name || 'Player') + (i === s.mySeat ? ' <span class="muted">(you)</span>' : '') + (x.online ? '' : ' <span class="muted">· away</span>') :
+        const who = x.kind === 'human' ? esc(x.name || 'Player') + (i === s.mySeat ? ' <span class="muted">(you)</span>' : '') + (x.online || i === s.mySeat ? '' : ' <span class="muted">· away</span>') :
           x.kind === 'computer' ? 'Computer teammate' : '<span class="muted">Open seat</span>';
         let b = '';
         if (host && i !== s.mySeat) b = x.kind === 'empty' ? '<button class="btn small" data-seat="' + i + '" data-kind="computer">Computer</button>' :
@@ -278,7 +280,7 @@
         '<input class="txt code" id="on-code" maxlength="5" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Code">' +
         '<button class="btn primary" data-on="join">Join</button></div></div>';
     }
-    vPlay.innerHTML = '<div class="setup"><div class="row"><button class="btn small ghost" data-on="back">Back</button><span class="grow"></span><span class="label">Play online</span></div>' + body + '</div>';
+    put(vPlay, '<div class="setup"><div class="row"><button class="btn small ghost" data-on="back">Back</button><span class="grow"></span><span class="label">Play online</span></div>' + body + '</div>');
   }
 
   function startLocal() {
@@ -329,9 +331,10 @@
 
   function renderGame() {
     const v = table.view();
-    if (!v) { vPlay.innerHTML = '<div class="setup"><div class="panel"><b>Connecting…</b></div></div>'; return; }
+    if (!v) { put(vPlay, '<div class="setup"><div class="panel"><b>Connecting…</b></div></div>'); return; }
     ensureMap();
     if (!$('#game')) {
+      vPlay._h = null;
       vPlay.innerHTML = '<div id="game"><div class="status" id="g-status"></div><div class="info" id="g-info"></div><div class="risk" id="g-risk"></div>' +
         '<div class="players" id="g-players"></div><div class="hand" id="g-hand"></div><div class="acts" id="g-acts"></div><div id="g-side"></div></div>';
       $('#game').insertBefore(mapBox, $('#g-info'));
@@ -374,12 +377,12 @@
     const epi = 1 - odds.epidemic[0];
     const vials = '<span class="vials">' + [0, 1, 2, 3].map(c => '<span class="vial" title="' + COLOR_NAMES[c] + '" style="border-color:' + HEX[c] +
       ';background:' + (v.cured[c] ? (v.erad[c] ? 'repeating-linear-gradient(45deg,' + HEX[c] + ' 0 3px,#fff 3px 5px)' : HEX[c]) : 'transparent') + (c === 2 ? ';border-color:#8a8fa3' : '') + '"></span>').join('') + '</span>';
-    $('#g-status').innerHTML =
+    put($('#g-status'),
       '<span class="stat" data-q="Outbreaks so far. At 8 the team loses." style="color:' + outCol + '">' + ICON.out + '<b>' + v.outbreaks + '</b>/8</span>' +
       '<span class="stat" data-q="Infection rate: how many infection cards are flipped at the end of each turn. It goes up with every Epidemic (2-2-2-3-3-4-4).">' + ICON.rate + '<b>' + D.RATE_TRACK[v.rate] + '</b></span>' +
       '<span class="stat" data-q="Cures found (filled) and diseases wiped out (striped). Cure all four to win.">' + vials + '</span>' +
       '<span class="stat" data-q="' + esc('Player cards left: ' + v.pdeckCount + '. You lose when someone cannot draw 2. Chance of an Epidemic in the next draw: ' + pct(epi) + ' (exact, from the ' + v.piles.length + ' piles the deck was built from).') + '">' + ICON.deck + '<b>' + v.pdeckCount + '</b><span style="color:' + heat(epi, 0.6, 0) + '">' + (O.drawsAhead(v) ? '· ' + pct(epi) : '') + '</span></span>' +
-      '<span class="grow"></span><button class="icon-btn" id="g-menu" aria-label="Menu">' + ICON.menu + '</button>';
+      '<span class="grow"></span><button class="icon-btn" id="g-menu" aria-label="Menu">' + ICON.menu + '</button>');
   }
 
   function moveLabel(a, v) {
@@ -447,7 +450,7 @@
       p2 = '<span>' + esc(last ? last.m : '') + '</span>';
     }
     box.className = cls;
-    box.innerHTML = '<div class="p1">' + p1 + '</div><div class="p2">' + p2 + '</div>';
+    put(box, '<div class="p1">' + p1 + '</div><div class="p2">' + p2 + '</div>');
   }
   function whoPicker(v) {
     const who = ui.who >= 0 ? ui.who : ME;
@@ -469,12 +472,12 @@
     rows.sort((a, b) => (odds.out[b] - odds.out[a]) || (odds.draw[b] - odds.draw[a]));
     const epi = 1 - odds.epidemic[0];
     const epiChip = O.drawsAhead(v) ? '<span class="rchip" data-q="Chance the next 2 player cards include an Epidemic. Exact: each pile of the player deck holds exactly one." style="border-color:' + heat(epi, 0.6, 0) + '">Epidemic <b class="pct" style="color:' + heat(epi, 0.6, 0) + '">' + pct(epi) + '</b></span>' : '';
-    $('#g-risk').innerHTML = epiChip + rows.slice(0, 8).map(c => {
+    put($('#g-risk'), epiChip + rows.slice(0, 8).map(c => {
       const col = CITIES[c].color, own = v.cubes[c * 4 + col];
       return '<span class="rchip" data-city="' + c + '"><span class="dot" style="background:' + HEX[col] + '"></span>' + esc(cname(c)) +
         (own ? ' ' + own : '') + ' <b class="pct" style="color:' + (odds.out[c] > 0.004 ? heat(odds.out[c], 0.4, 0) : heat(odds.draw[c] * (1 + own), 1, 0)) + '">' +
         (odds.out[c] > 0.004 ? 'boom ' + pct(odds.out[c]) : pct(odds.draw[c])) + '</b></span>';
-    }).join('');
+    }).join(''));
   }
 
   function renderPlayers(v) {
@@ -486,9 +489,9 @@
         '<span class="nmx">' + esc(playerLabel(v, p)) + ' <span class="muted">· ' + esc(shortRole(r)) + '</span></span><b>' + n + '</b>' + cards + '</div>';
     }).join('');
     const box = $('#g-players');
-    if (box.innerHTML !== html) box.innerHTML = html;
+    put(box, html);
     const side = $('#g-side .players');
-    if (side && side.innerHTML !== html) side.innerHTML = html;
+    if (side) put(side, html);
   }
 
   function renderHand(v, toAct) {
@@ -503,15 +506,15 @@
       return A.cardHtml(c, { cls: cls + (isNew ? ' deal' : ''), attr: ' data-card="' + c + '"' + (i >= sorted.length ? ' data-stored="1"' : ''), delay: isNew ? i * 60 : 0 });
     }).join('') || '<span class="empty">No cards</span>';
     renderHand.prev = hand.slice();
-    $('#g-hand').innerHTML = html;
+    put($('#g-hand'), html);
   }
 
   function renderActs(v, toAct) {
     const box = $('#g-acts');
-    if (v.over) { box.innerHTML = '<button class="btn primary" data-g="new">New game</button><button class="btn" data-go="study">Review</button>'; return; }
+    if (v.over) { put(box, '<button class="btn primary" data-g="new">New game</button><button class="btn" data-go="study">Review</button>'); return; }
     if (!(v.phase === 'actions' && v.cur === ME && toAct.includes(ME)) || ui.mode) {
       const nt = table.online ? '' : '<button class="btn ghost" data-g="speed">Speed: ' + store.settings.speed + '</button>';
-      box.innerHTML = '<span class="muted small" style="align-self:center;padding:0 4px">' + (toAct.includes(ME) ? 'Your decision' : 'Teammates are playing') + '</span><span class="grow"></span>' + nt;
+      put(box, '<span class="muted small" style="align-self:center;padding:0 4px">' + (toAct.includes(ME) ? 'Your decision' : 'Teammates are playing') + '</span><span class="grow"></span>' + nt);
       return;
     }
     const L = E.legalActions(planState(v));
@@ -529,7 +532,7 @@
     if (store.settings.hints) h += btn('data-g="hint"', 'Hint', 'ghost');
     h += btn('data-g="end"', 'End turn', 'ghost');
     void here;
-    box.innerHTML = h;
+    put(box, h);
   }
 
   function renderSide(v, odds) {
@@ -543,16 +546,16 @@
     // mirror the info box
     const src = $('#g-info');
     const info2 = $('#g-info2');
-    info2.className = src.className; info2.innerHTML = src.innerHTML;
+    info2.className = src.className; put(info2, src._h || src.innerHTML);
     renderPlayers(v);
     const rows = [];
     for (let c = 0; c < 48; c++) if (odds.draw[c] + odds.epi[c] > 0.004) rows.push(c);
     rows.sort((a, b) => (odds.out[b] - odds.out[a]) || (odds.draw[b] - odds.draw[a]));
-    $('#g-odds').innerHTML = '<table class="odds"><tr><th>City</th><th>Cubes</th><th>Next</th><th>Outbreak</th></tr>' + rows.slice(0, 18).map(c => {
+    put($('#g-odds'), '<table class="odds"><tr><th>City</th><th>Cubes</th><th>Next</th><th>Outbreak</th></tr>' + rows.slice(0, 18).map(c => {
       const col = CITIES[c].color, own = v.cubes[c * 4 + col];
       return '<tr data-city="' + c + '" style="cursor:pointer"><td>' + sw(col) + ' ' + esc(cname(c)) + '</td><td>' + (own ? cubePips(own, col) : '') + '</td><td style="color:' + heat(odds.draw[c] * (1 + own), 1, 0) + '">' + pct(odds.draw[c]) +
         '</td><td style="color:' + heat(odds.out[c], 0.4, 0) + '">' + (odds.out[c] > 0.004 ? pct(odds.out[c]) : '–') + '</td></tr>';
-    }).join('') + '</table>';
+    }).join('') + '</table>');
     const lg = $('#g-log');
     lg.innerHTML = '<ul class="log">' + v.log.slice(-60).map(e => '<li class="' + (/Outbreak|Epidemic|lost|No /.test(e.m) ? 'hot' : '') + '"><span class="r">' + e.t + '</span>' + esc(e.m) + '</li>').join('') + '</ul>';
     lg.scrollTop = lg.scrollHeight;

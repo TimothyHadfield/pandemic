@@ -385,6 +385,18 @@ test('epidemic chances: exact small cases', () => {
   close(O.epidemicChances({ piles: [10, 10], pdeckCount: 14, epiDrawn: 0, draws: 2 }), [0.5, 0.5, 0]);
   close(O.epidemicChances({ piles: [10, 10], pdeckCount: 12, epiDrawn: 0, draws: 2 }), [0, 1, 0]);
 });
+// Exact case: only one card is unseen, so it must be the Epidemic's bottom card. It goes into the
+// discard pile before Intensify, so it is back on top with the other 47: drawn 2 times in 48.
+test('epidemic odds: the bottom card is shuffled back on top', () => {
+  const close = (a, b) => a.forEach((x, i) => assert.ok(Math.abs(x - b[i]) < 1e-12, a + ' vs ' + b));
+  const c0 = 7;
+  const v = { layers: [], idisc: Array.from({ length: 48 }, (_, i) => i).filter(i => i !== c0), iremoved: [], rate: 0,
+    piles: [2], pdeckCount: 2, epiDrawn: 0, cubes: new Array(192).fill(0), erad: [0, 0, 0, 0] };
+  const o = O.infectionOdds(v, 2, null);
+  close([o.epidemic[0], o.epidemic[1]], [0, 1]);
+  close([o.epi[c0]], [1]);
+  close([o.draw[c0], o.draw[c0 === 0 ? 1 : 0]], [2 / 48, 2 / 48]);
+});
 // Monte Carlo: reshuffle everything the players cannot know, run the real engine to the end of the
 // Infect step, and compare how often each city is drawn with the exact odds.
 test('infection odds match the real engine (Monte Carlo, incl. epidemics)', () => {
