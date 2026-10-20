@@ -18,7 +18,7 @@ const E = req('../js/engine.js');
 const SHOTS = process.env.SHOTS || '';
 if (SHOTS) fs.mkdirSync(SHOTS, { recursive: true });
 
-const T = { '.html': 'text/html', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png' };
+const T = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png' };
 const srv = http.createServer((q, r) => {
   let p = decodeURIComponent(q.url.split('?')[0]); if (p.endsWith('/')) p += 'index.html';
   fs.readFile(join(ROOT, p), (e, d) => { if (e) { r.writeHead(404); r.end(); } else { r.writeHead(200, { 'content-type': T[extname(p)] || 'application/octet-stream' }); r.end(d); } });
@@ -76,6 +76,8 @@ async function drag(page, m, dx, dy) {
   await page.mouse.up();
   await page.waitForTimeout(100);
 }
+// wait until the map has settled into the expected state (a slow, busy machine paints the glide in fewer, longer frames)
+const until = async (page, ok, max = 4000) => { const t0 = Date.now(); let m = await measure(page); while (!ok(m) && Date.now() - t0 < max) { await page.waitForTimeout(100); m = await measure(page); } return m; };
 const shot = async (page, name) => { if (SHOTS) await page.screenshot({ path: join(SHOTS, name + '.png') }); };
 
 const browser = await pw.webkit.launch();
@@ -101,8 +103,7 @@ try {
 
     if (vp.touch) await pinch(page, 15);
     else { const [x, y] = centre(auto); await page.mouse.move(x, y); for (let i = 0; i < 5; i++) await page.mouse.wheel(0, -100); }
-    await page.waitForTimeout(500);
-    const zin = await measure(page);
+    const zin = await until(page, m => m.board.r - m.board.l > (auto.board.r - auto.board.l) * 1.3 && m.fitOpacity >= 0.95);
     await shot(page, vp.name + '-2-zoomed');
     check(zin.board.r - zin.board.l > (auto.board.r - auto.board.l) * 1.3, (vp.touch ? 'pinch' : 'wheel') + ' zooms in');
     check(zin.fitOpacity >= 0.95, 'fit button is lit when zoomed (opacity ' + zin.fitOpacity + ')');
@@ -113,8 +114,7 @@ try {
 
     const fitBtn = await page.$('#g-map [data-z="fit"]');
     if (fitBtn) await fitBtn.click(); else check(false, 'fit button exists');
-    await page.waitForTimeout(700);
-    const back = await measure(page);
+    const back = await until(page, m => same(m.board, auto.board) && m.fitOpacity < 0.75);
     await shot(page, vp.name + '-3-back-to-fit');
     check(same(back.board, auto.board), 'fit button glides back to the auto box (±2 px)');
     check(back.fitOpacity < 0.75, 'fit button dims again in auto');
@@ -122,11 +122,11 @@ try {
     const plus = await page.$('#g-map [data-z="in"]'), minus = await page.$('#g-map [data-z="out"]');
     check(!!plus && !!minus, '+ and − buttons exist');
     if (plus && minus) {
-      await plus.click(); await page.waitForTimeout(500);
-      const p1 = await measure(page);
+      await plus.click();
+      const p1 = await until(page, m => m.board.r - m.board.l > (auto.board.r - auto.board.l) * 1.2 && m.fitOpacity >= 0.95);
       check(p1.board.r - p1.board.l > (auto.board.r - auto.board.l) * 1.2 && p1.fitOpacity >= 0.95, '+ zooms in and lights fit');
-      await minus.click(); await minus.click(); await minus.click(); await page.waitForTimeout(600);
-      const p2 = await measure(page);
+      await minus.click(); await minus.click(); await minus.click();
+      const p2 = await until(page, m => same(m.board, auto.board) && m.fitOpacity < 0.75);
       check(same(p2.board, auto.board) && p2.fitOpacity < 0.75, '− never goes past the fit, and zooming out to the fit is auto again');
     }
     if (!vp.touch) {
@@ -142,17 +142,14 @@ try {
     await page.click('#tabs button[data-tab="study"]');
     await page.waitForTimeout(200);
     await page.click('#tabs button[data-tab="play"]');
-    await page.waitForTimeout(700);
-    check(same((await measure(page)).board, auto.board), 'back on the Play tab the map is in auto again');
+    check(same((await until(page, m => same(m.board, auto.board))).board, auto.board), 'back on the Play tab the map is in auto again');
 
     // the box changes size (window resize / rotation): auto re-fits by itself
     await page.setViewportSize({ width: vp.height, height: vp.width });
-    await page.waitForTimeout(800);
-    const rot = await measure(page);
+    const rot = await until(page, fits);
     check(fits(rot), 'after a rotation the whole board fits the new box');
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.waitForTimeout(800);
-    check(same((await measure(page)).board, auto.board), 'rotating back: same auto box as on load');
+    check(same((await until(page, m => same(m.board, auto.board))).board, auto.board), 'rotating back: same auto box as on load');
 
     check(errs.length === 0, 'no page errors' + (errs.length ? ': ' + errs.join(' | ') : ''));
     await ctx.close();

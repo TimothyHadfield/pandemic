@@ -159,7 +159,7 @@
 
   // ------------------------------------------------------------------ small helpers
   // write HTML only when it changed, so buttons aren't replaced under a finger (online updates arrive often)
-  function put(el, html) { if (el && el._h !== html) { el.innerHTML = html; el._h = html; } }
+  function put(el, html) { if (el && el._h !== html) { el.innerHTML = html; el._h = html; if (el.id === 'v-play') el.classList.remove('tbl-surface', 'tbl-wood-dark'); } }
   const qBtn = text => '<button class="q" data-q="' + esc(text) + '" aria-label="Why?">?</button>';
   function toast(msg) {
     document.querySelectorAll('.toast').forEach(t => t.remove());
@@ -386,8 +386,11 @@
     ensureMap();
     if (!$('#game')) {
       vPlay._h = null;
+      // the table from your seat: teammates at the far side, the board in the middle, your role card and hand at the bottom
       vPlay.innerHTML = '<div id="game"><div class="status" id="g-status"></div><div class="info" id="g-info"></div><div class="risk" id="g-risk"></div>' +
-        '<div class="players" id="g-players"></div><div class="hand" id="g-hand"></div><div class="acts" id="g-acts"></div><div id="g-side"></div></div>';
+        '<div class="players" id="g-players"></div><div class="hand" id="g-hand"><div id="g-me"></div><div id="g-fan"></div></div><div class="acts" id="g-acts"></div><div id="g-side"></div></div>';
+      fanApi = null;
+      vPlay.classList.add('tbl-surface', 'tbl-wood-dark');
       $('#game').insertBefore(mapBox, $('#g-info'));
       setTimeout(() => { mapApi.reset(true); mapApi.fit(true); }, 0); // a new game screen always starts in auto
     }
@@ -561,35 +564,86 @@
     }).join(''));
   }
 
+  // teammates sit at the far side of the table: role card, their held cards (face up when open, backs when hidden)
   function renderPlayers(v) {
-    const html = v.roles.map((r, p) => {
-      const n = v.handN[p] + (p === v.cur ? 0 : 0);
-      const cards = v.hands[p].length ? '<div class="cards">' + v.hands[p].map(c => A.cardHtml(c, { cls: 'mini' })).join('') + (v.cp >= 0 && ROLES[r].key === 'planner' ? A.cardHtml(v.cp, { cls: 'mini' }) : '') + '</div>' :
-        (v.handN[p] ? '<div class="cards muted small">' + v.handN[p] + ' cards (hidden)</div>' : '');
-      return '<div class="pchip' + (p === v.cur && !v.over ? ' turn' : '') + '" data-player="' + p + '">' + A.roleIcon(r, 15) +
-        '<span class="nmx">' + esc(playerLabel(v, p)) + ' <span class="muted">· ' + esc(shortRole(r)) + '</span></span><b>' + n + '</b>' + cards + '</div>';
+    const others = v.roles.map((_, p) => p).filter(p => p !== ME);
+    const html = others.map(p => {
+      const r = v.roles[p];
+      const cards = v.hands[p].length ? v.hands[p].slice() : new Array(v.handN[p]).fill(-1);
+      if (v.cp >= 0 && ROLES[r].key === 'planner') cards.push(v.cp);
+      const n = cards.length;
+      const hand = cards.map((c, i) => {
+        const st = '--r:' + ((i - (n - 1) / 2) * 3).toFixed(1) + 'deg';
+        return c < 0 ? A.backHtml('p', { style: st }) : A.cardHtml(c, { tag: 'span', cls: 'mini', style: st });
+      }).join('');
+      const label = v.human[p] ? esc(v.names[p]) : others.length > 1 ? esc(shortRole(r)) : esc(v.names[p]) + ' <span class="muted">· ' + esc(shortRole(r)) + '</span>';
+      return '<div class="pchip seat' + (p === v.cur && !v.over ? ' turn' : '') + '" data-player="' + p + '" style="--n:' + others.length + '">' + A.roleCardHtml(r) +
+        '<span class="sc"><span class="snm"><span class="nmx">' + label + '</span><b>' + v.handN[p] + '</b></span><span class="sh">' + hand + '</span></span></div>';
     }).join('');
-    // the phone row is narrow: with 3-4 players a computer chip shows its role only ("Medic"), people keep their name
-    const narrow = v.roles.length > 2 ? v.roles.map((r, p) => '<div class="pchip' + (p === v.cur && !v.over ? ' turn' : '') + '" data-player="' + p + '">' + A.roleIcon(r, 15) +
-      '<span class="nmx">' + (p === ME && !v.over ? 'You' : v.human[p] ? esc(v.names[p]) : esc(shortRole(r))) + '</span><b>' + v.handN[p] + '</b></div>').join('') : html;
-    put($('#g-players'), narrow);
-    const side = $('#g-side .players');
-    if (side) put(side, html);
+    put($('#g-players'), html);
   }
 
+  // your hand, held as a fan of real cards; new cards are dealt from the player deck, spent ones go to their pile
+  let fanApi = null;
   function renderHand(v, toAct) {
     const hand = v.hands[ME] || [];
     const sorted = hand.slice().sort((a, b) => (a >= 48) - (b >= 48) || (a < 48 && b < 48 ? CITIES[a].color - CITIES[b].color || a - b : a - b));
-    const prev = renderHand.prev || [];
     const extra = v.cp >= 0 && v.roles[ME] === D.ROLE_IDX.planner ? [v.cp] : [];
-    const html = sorted.concat(extra).map((c, i) => {
-      let cls = '';
-      if (ui.card === c || ui.discardPick === c) cls = 'sel';
-      const isNew = !prev.includes(c);
-      return A.cardHtml(c, { cls: cls + (isNew ? ' deal' : ''), attr: ' data-card="' + c + '"' + (i >= sorted.length ? ' data-stored="1"' : ''), delay: isNew ? i * 60 : 0 });
-    }).join('') || '<span class="empty">No cards</span>';
-    renderHand.prev = hand.slice();
-    put($('#g-hand'), html);
+    const ids = sorted.concat(extra);
+    const me = $('#g-me');
+    me.dataset.player = ME;
+    put(me, A.roleCardHtml(v.roles[ME], { cls: v.cur === ME && !v.over ? 'turn' : '' }));
+    const fanEl = $('#g-fan');
+    const key = ids.join(',') + '|' + ui.card + '|' + ui.discardPick + '|' + extra.length;
+    if (fanEl._k === key) return;
+    const prevIds = fanEl._ids || null;
+    // cards that left your hand slide to where they went: a teammate's seat, or the player discard pile
+    if (prevIds && fanApi) {
+      prevIds.forEach((c, i) => {
+        if (ids.includes(c)) return;
+        const from = fanApi.cards[i];
+        let to = null;
+        v.hands.forEach((h, p) => { if (p !== ME && h.includes(c)) to = document.querySelector('#g-players [data-player="' + p + '"]'); });
+        if (!to) to = visibleSpot('pdisc');
+        if (from && to) TABLE.slide(from, to);
+      });
+    }
+    if (fanApi && fanApi.disconnect) fanApi.disconnect();
+    fanApi = null;
+    if (!ids.length) { fanEl.style.height = ''; fanEl.className = 'fan-empty'; fanEl.innerHTML = '<span class="empty">No cards</span>'; }
+    else {
+      fanEl.className = '';
+      fanApi = TABLE.fan(fanEl, ids.map((c, i) => A.cardHtml(c, {
+        cls: ui.card === c || ui.discardPick === c ? 'sel is-up' : '',
+        attr: ' data-card="' + c + '"' + (i >= sorted.length ? ' data-stored="1"' : ''),
+      })), { pick: false, spread: 1.04, lift: 12, maxRot: 8, arc: 0.7 });
+      // dealt from the deck: each new card flies in from the player deck on the board, turning face up
+      const deck = prevIds ? visibleSpot('pdeck') : null;
+      if (deck && TABLE.animOn()) {
+        const a = deck.getBoundingClientRect();
+        let k = 0;
+        fanApi.cards.forEach((el, i) => {
+          if (prevIds.includes(ids[i])) return;
+          const b = el.getBoundingClientRect();
+          if (!b.width) return;
+          const dx = a.left + a.width / 2 - (b.left + b.width / 2), dy = a.top + a.height / 2 - (b.top + b.height / 2);
+          const s = Math.max(0.15, Math.min(1, a.width / b.width));
+          try {
+            el.animate([{ translate: dx + 'px ' + dy + 'px', scale: String(s), rotate: 'y 90deg' }, { translate: '0px 0px', scale: '1', rotate: 'y 0deg' }],
+              { duration: FX.settings.animSpeed === 'fast' ? 230 : 420, delay: k++ * 110, easing: 'cubic-bezier(.3,.7,.3,1)', fill: 'backwards' });
+          } catch (e) { /* old browser: no flight */ }
+        });
+      }
+    }
+    fanEl._k = key; fanEl._ids = ids;
+  }
+  // a deck / pile on the board, if it is on screen (zoomed away: the status row's deck stands in for it)
+  function visibleSpot(k) {
+    const el = mapApi && mapApi.spot(k);
+    if (!el) return null;
+    const r = el.getBoundingClientRect(), m = mapBox.getBoundingClientRect();
+    if (r.width && r.left >= m.left - 2 && r.right <= m.right + 2 && r.top >= m.top - 2 && r.bottom <= m.bottom + 2) return el;
+    return k === 'pdeck' ? document.querySelectorAll('#g-status .stat')[3] || null : null;
   }
 
   function renderActs(v, toAct) {
@@ -622,7 +676,7 @@
     const side = $('#g-side');
     if (getComputedStyle(side).display === 'none') return;
     if (!side.firstChild) {
-      side.innerHTML = '<div class="info" id="g-info2"></div><div class="players"></div>' +
+      side.innerHTML = '<div class="info" id="g-info2"></div>' +
         '<div class="panel oddsbox"><div class="row"><span class="label grow">Next infection</span>' + qBtn('Exact chance each city is infected at the end of this turn, from the cards everyone has seen: the discard pile goes back on top after an Epidemic, and the player deck has one Epidemic per pile. “Outbreak” counts the direct risk, not chain reactions.') + '</div><div class="scroll" id="g-odds"></div></div>' +
         '<div class="panel logbox"><span class="label">Log</span><div class="scroll" id="g-log"></div></div>';
     }
@@ -630,7 +684,6 @@
     const src = $('#g-info');
     const info2 = $('#g-info2');
     info2.className = src.className; put(info2, src._h || src.innerHTML);
-    renderPlayers(v);
     const rows = [];
     for (let c = 0; c < 48; c++) if (odds.draw[c] + odds.epi[c] > 0.004) rows.push(c);
     rows.sort((a, b) => (odds.out[b] - odds.out[a]) || (odds.draw[b] - odds.draw[a]));
@@ -649,17 +702,37 @@
     const old = $('.flipstrip');
     if (old) old.remove();
     clearTimeout(flipTimer);
+    // real cards: drawn player cards come off the player deck, infection cards off the infection deck, each turned face up
     const items = [];
-    (v.lastDraw || []).forEach(c => items.push({ t: 'Drew ' + D.cardName(c), cls: '' }));
-    (v.lastEpi || []).forEach(c => items.push({ t: 'Epidemic: ' + cname(c), cls: 'epi' }));
-    (v.lastInf || []).forEach(c => items.push({ t: cname(c), cls: '', col: CITIES[c].color }));
+    (v.lastDraw || []).forEach(c => items.push({ front: A.cardHtml(c, { tag: 'span' }), deck: 'pdeck', t: 'Drew ' + D.cardName(c) }));
+    (v.lastEpi || []).forEach(c => items.push({ front: A.cardHtml(D.EPIDEMIC, { tag: 'span', city: c }), deck: 'pdeck', t: 'Epidemic: ' + cname(c) }));
+    (v.lastInf || []).forEach(c => items.push({ front: A.infHtml(c), deck: 'ideck', t: cname(c) }));
     if (!items.length) return;
     const strip = document.createElement('div');
     strip.className = 'flipstrip';
     const step = flipStep();
-    strip.innerHTML = items.slice(0, 6).map((x, i) => '<div class="fc ' + x.cls + '" style="animation-delay:' + i * step + 'ms">' + (x.col !== undefined ? sw(x.col) : '') + esc(x.t) + '</div>').join('');
+    const list = items.slice(0, 6);
+    strip.innerHTML = list.map(x => {
+      const f = x.front.replace(/^<span class="/, '<span class="tbl-face ').replace(/\btbl-card\b/, '');
+      return '<div class="fcard tbl-card tbl-flip is-down" aria-label="' + esc(x.t) + '"><div class="tbl-inner">' + f +
+        A.backHtml(x.deck === 'ideck' ? 'inf' : 'p', { cls: 'tbl-face' }).replace(/\btbl-card /, '') + '</div></div>';
+    }).join('');
     document.body.appendChild(strip);
-    flipTimer = setTimeout(() => strip.remove(), 2200 + items.length * step);
+    const cards = Array.from(strip.children);
+    const anim = TABLE.animOn();
+    cards.forEach((el, i) => {
+      const deck = anim ? visibleSpot(list[i].deck) : null;
+      if (deck) {
+        const a = deck.getBoundingClientRect(), b = el.getBoundingClientRect();
+        const dx = a.left + a.width / 2 - (b.left + b.width / 2), dy = a.top + a.height / 2 - (b.top + b.height / 2);
+        try {
+          el.animate([{ translate: dx + 'px ' + dy + 'px', scale: String(Math.max(0.15, Math.min(1, a.width / b.width))) }, { translate: '0px 0px', scale: '1' }],
+            { duration: Math.round(step * 2.2), delay: i * step, easing: 'cubic-bezier(.3,.7,.3,1)', fill: 'backwards' });
+        } catch (e) { /* no flight */ }
+      }
+      setTimeout(() => TABLE.flip(el, false), anim ? i * step + Math.round(step * 2.2) : 0);
+    });
+    flipTimer = setTimeout(() => strip.remove(), 2400 + items.length * step);
   }
 
   // play one timed list from PanSfx.events: sounds always (if on), motion only on the game screen
