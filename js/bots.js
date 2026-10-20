@@ -12,7 +12,7 @@
 
   // ------------------------------------------------------------ context computed once per decision
   // weights (tuned by measuring win rates with tools/measure.js; PAN_W env overrides for tuning)
-  const W = { cured: 2200, cure: 1500, spare: 25, shareF: 0.3, shareD: 4, toStation: 70, cube: 10, soon: 4, out: 120, cardCity: 7, cardEvent: 16, station: 30, near: 6, limit: 25, look: 0, lookK: 4, lookW: 4, lookCap: 1500, oc: 300, supply: 6, tight: 300 };
+  const W = { cured: 2200, cure: 1500, spare: 25, shareF: 0.3, shareD: 4, toStation: 70, cube: 10, soon: 4, out: 120, cardCity: 7, cardEvent: 16, station: 30, near: 6, limit: 25, grantMin: 40, width: 10, cap: 3000, look: 0, lookK: 4, lookW: 4, lookCap: 1500, oc: 300, supply: 6, tight: 300 };
   const CUBE_W = [0, 0.6, 2.5, 8];
   if (typeof process !== 'undefined' && process.env && process.env.PAN_W) Object.assign(W, JSON.parse(process.env.PAN_W));
 
@@ -338,7 +338,7 @@
   const s0n = s => s.n;
   function plan(state, opts) {
     opts = opts || {};
-    const width = opts.width || 10;
+    const width = opts.width || W.width;
     const ctx = opts.ctx || context(state);
     const root = simClone(state);
     const startScore = evaluate(root, ctx);
@@ -349,7 +349,7 @@
     levels[0].set('root', rootNode);
     let bestNode = rootNode;
     let evals = 0;
-    const cap = opts.cap || 9000, perLevel = cap / Math.max(1, steps);
+    const cap = opts.cap || W.cap, perLevel = cap / Math.max(1, steps);
     const p = root.cur;
     const disp = E.roleKey(root, p) === 'dispatcher';
     const add = (node, seq) => {
@@ -379,7 +379,8 @@
     for (let d = 0; d < steps; d++) {
       const nodes = Array.from(levels[d].values()).sort((x, y) => y.score - x.score).slice(0, width);
       const stop = evals + perLevel;
-      for (const node of nodes) {
+      for (let ni = 0; ni < nodes.length; ni++) {
+        const node = nodes[ni];
         const s = node.s;
         if (s.over || s.left <= 0) continue;
         if (evals > stop) break; // keeps the phone fast: the best positions are expanded first
@@ -395,7 +396,7 @@
           }
         }
         // the Dispatcher moves a teammate (to a pawn, a station or a danger spot)
-        if (disp) {
+        if (disp && ni < 4) { // (only from the best few positions: it is the slowest part)
           const hot = interesting(s);
           for (let q = 0; q < s.n; q++) {
             if (q === p) continue;
@@ -474,8 +475,46 @@
       if (has(EV.quiet) && !s.quiet && (risk >= 0.5 || (s.pdeck ? s.pdeck.length : s.pdeckCount) <= 2 * s.n)) return { t: 'event', card: EV.quiet };
       if (has(EV.forecast) && risk >= 0.25 && !s.quiet) return { t: 'event', card: EV.forecast };
       void r;
+      // Airlift a teammate who holds a full set onto a station, so they cure at the start of their turn
+      if (has(EV.airlift)) {
+        for (let q = 0; q < s.n; q++) {
+          if (s.stations.includes(s.pawns[q]) || readyColor(s, q) < 0 || stationDist(s, q) <= 1) continue;
+          let bst = s.stations[0], bd = 99;
+          for (const st of s.stations) if (DIST[s.pawns[q]][st] < bd) { bd = DIST[s.pawns[q]][st]; bst = st; }
+          return { t: 'event', card: EV.airlift, who: q, to: bst };
+        }
+      }
     }
     return null;
+  }
+  function readyColor(s, p) {
+    for (let col = 0; col < 4; col++) {
+      if (s.cured[col]) continue;
+      let k = 0;
+      for (const c of s.hands[p]) if (isCity(c) && CITIES[c].color === col) k++;
+      if (k >= E.needFor(s, p)) return col;
+    }
+    return -1;
+  }
+  // Government Grant on the city where a new station helps the team most (null if none is worth the card)
+  function bestGrant(s, p, ctx, base) {
+    const t0 = simClone(s);
+    if (base === undefined) base = evaluate(t0, ctx);
+    let best = base + W.grantMin, pick = -1;
+    for (let c = 0; c < N; c++) {
+      if (s.stations.includes(c)) continue;
+      const t = simClone(s);
+      const h = t.hands[p], k = h.indexOf(EV.grant);
+      if (k >= 0) h.splice(k, 1);
+      t.stations.push(c);
+      if (t.stations.length > 6) t.stations.splice(t.stations.indexOf(spareStation(s)), 1);
+      const w = evaluate(t, ctx);
+      if (w > best) { best = w; pick = c; }
+    }
+    if (pick < 0) return null;
+    const a = { t: 'event', card: EV.grant, city: pick };
+    if (s.stations.length >= 6) a.remove = spareStation(s);
+    return a;
   }
   // Forecast: least dangerous cities on top, dangerous ones as deep as possible
   function forecastOrder(s) {
@@ -536,6 +575,11 @@
     if (s.phase === 'actions' && p === s.cur) {
       const help = cureHelp(s, p);
       if (help) return help;
+      // Government Grant early in the turn when a station somewhere is clearly worth the card
+      if (s.left === 4 && s.hands[p].includes(EV.grant) && s.stations.length < 6) {
+        const g = bestGrant(s, p, ctx);
+        if (g) return g;
+      }
       // the turn's plan is made once; nothing random happens between actions, so it stays good
       let a;
       if (cache.key === posKey(s) && cache.seq.length) a = cache.seq.shift();
