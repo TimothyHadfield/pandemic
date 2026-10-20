@@ -5,4 +5,5 @@
 - **Built:** engine + exact odds + computer teammates + planner; screens Play / Table / Study / Settings; online rooms; tests; rules check with sources; ideas list.
 - **Verified:** see progress.md (tests, mutation checks, phone-view 393 px + laptop, a whole game in WebKit, two-browser online run).
 - **Open:** see progress.md NOT verified.
+- **Design pass (same day):** Tim: "once you're finished with all the games, review them again for design improvements especially visually." Before/after screenshots at 393 px + 1440 px, a read-only reviewer ranked 15 problems; fixed taps, cards, map, game-over box, role buttons, desktop sizing (see progress.md Status). Tests 23/23 + online 6/6.
 - **Later the same day:** merged the stronger computer teammates (route-based turn search; about 14% → 28% overall over 300 fixed games), rebuilt the win-rate table, and fixed the 11 QA findings (see progress.md Status).

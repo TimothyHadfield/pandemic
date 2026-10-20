@@ -18,6 +18,7 @@ First version is live: play Pandemic (2nd edition) with computer teammates or fr
 | Table tab (real-table tracker) | Done |
 | Study tab (win rates, danger map, last game chart, points lost) | Done (`js/strength-data.js` rebuilt with `node tools/build-strength.js 200`, about 12 min) |
 | Settings | Done |
+| Design pass (2026-10-20) | Done: phone taps all ≥40 px (status, risk, player chips), role buttons stack icon over name, bigger hand cards with soft hyphens (all 53 card names fit at 393 px and laptop, measured), seamless map ocean, black cities outlined, colour swatches visible, one set of game-over buttons + dim backdrop, desktop setup/hand/table/study sized up, phone Study chart no longer clipped. Screenshots: scratchpad `design/pandemic/before|after` |
 | QA pass (2026-10-20) | 11 findings fixed: broken saves (game or tracker) start fresh instead of a blank tab; flip strip shows once (not on taps or reload); typed `#tab` addresses and Back work, Back with a sheet open only closes it; tracker blocks Flip/Treat mid-Epidemic, refuses more Epidemics than the setup has, resolves an Epidemic with an empty infection deck; Dispatcher row wraps at 393 px; 3–4 player chips show role only for computers; own Forecast prompt. Re-checked with the QA scripts in the scratchpad (qa1, flip4, disp4 screenshot) |
 
 ## Authorized next steps
@@ -49,6 +50,7 @@ First version is live: play Pandemic (2nd edition) with computer teammates or fr
 - Event timing edge cases online (two people with events at the same window).
 - Online: an uncaught FirebaseError `auth/network-request-failed` can come from an auth call in the shared `_online/online.js` with no catch (flaky network). Reported to the shared-module owner; not fixed here.
 - Hint speed on a real iPhone (laptop: about 60 ms average, up to about 360 ms).
+- Seen in `?autoplay` runs only: the Forecast sheet can open after the game is already over (won or lost). Not checked in a normal game; not fixed (behaviour, outside the design pass).
 
 ## Rejected / parked
 - ~~Chain-reaction odds~~: heavy maths, rarely changes a decision (docs/ideas.md #12).
