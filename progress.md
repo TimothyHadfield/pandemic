@@ -44,7 +44,7 @@ First version is live: play Pandemic (2nd edition) with computer teammates or fr
 - Population tie Chicago/Lima for first player: lower seat goes first (rulebook silent).
 - Online events: playable when the game asks (before each infection step; Resilient Population during an Epidemic), not at any moment.
 - Computer teammates in local games step one action at a time (speed in Settings).
-- Real map: Mercator lat ~70N to 45S; closest city pair ≥ 58 units; coastline stroke 1 (was 1.5, the detailed coast looked heavy); land/sea colours unchanged (reviewer found the laptop contrast weak, Tim's call); Santiago's label sits above its dot (clash below).
+- Real map: Mercator lat ~70N to 45S; closest city pair ≥ 58 units; coastline stroke 1 (was 1.5, the detailed coast looked heavy); land #2c4a52 + coast #5b8290 (was #1a2c38/#2a4456, too faint at 1440 px; coordinator asked for clearly lighter land, sea kept dark; screenshots `design/pandemic-maps/land-after`); Santiago's label sits above its dot (clash below).
 - Map risk rings only on cities with cubes or with ≥12% chance, so the map isn't covered in rings at the start.
 
 ## NOT verified
