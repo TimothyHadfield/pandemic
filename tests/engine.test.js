@@ -168,6 +168,23 @@ test('double epidemic: the second bottom city is drawn first and outbreaks', () 
   assert.ok(t.outbreaks >= 1);
   assert.ok(t.log.some(e => e.m === 'Outbreak in ' + D.CITIES[b2].name + '!'));
 });
+test('epidemic with an empty infection deck: rate up, no bottom card, discard back on top, game goes on', () => {
+  const s = blank();
+  s.cur = 0; s.left = 1;
+  s.idisc = s.idisc.concat(s.ideck); s.ideck = []; s.layers = [];
+  s.pdeck.push(D.EPIDEMIC, 5);
+  const t = E.apply(s, 0, { t: 'end' });
+  assert.equal(t.rate, 1);
+  assert.equal(t.epiDrawn, 1);
+  assert.equal(t.over, null);
+  assert.equal(t.phase, 'actions');
+  assert.equal(t.ideck.length + t.idisc.length, 48); // all 48 back in play: on top, then 2 flipped
+  assert.equal(t.idisc.length, 2);
+  // Forecast with nothing to look at says why
+  const f = blank(); f.idisc = f.idisc.concat(f.ideck); f.ideck = []; f.hands[0].push(EVf('forecast'));
+  assert.throws(() => E.apply(f, 0, { t: 'event', card: EVf('forecast') }), /infection deck is empty/);
+});
+function EVf(k) { return D.EVENTS.find(e => e.key === k).id; }
 
 // ------------------------------------------------------------------ actions
 test('moves: drive, direct, charter, shuttle; illegal ones throw', () => {

@@ -146,7 +146,8 @@
     el('path', { d: MAP.land, fill: LAND_FILL, stroke: COAST, 'stroke-width': 1, 'stroke-linejoin': 'round' }, board);
     el('path', { d: MAP.lakes, fill: 'url(#oc)', stroke: COAST, 'stroke-width': .8 }, board);
     // the printed tracks and card spaces, where the real board has them
-    const P = { fill: 'rgba(8,18,32,.62)', stroke: 'rgba(201,164,90,.55)', 'stroke-width': 1 };
+    // printed straight onto the ocean: a faint panel, a thin gold rule
+    const P = { fill: 'rgba(8,18,32,.34)', stroke: 'rgba(201,164,90,.3)', 'stroke-width': .8 };
     const title = (x, y, t, anchor) => { const e = el('text', { x, y, class: 'ptitle', 'text-anchor': anchor || 'middle' }, board); e.textContent = t; return e; };
     // infection rate: top edge, centre-right (2 2 2 3 3 4 4)
     el('rect', Object.assign({ x: 602, y: 5, width: 212, height: 50, rx: 7 }, P), board);
@@ -322,13 +323,70 @@
         c.g.setAttribute('transform', 'translate(' + D.CITIES[i].x + ' ' + D.CITIES[i].y + ') scale(' + Math.min(k, 1.7) + ')');
         c.risk.setAttribute('r', 12 * Math.min(k, 1.7));
         c.risk.setAttribute('stroke-width', 3 * Math.min(k, 1.7));
-        const important = last && last.sel === i;
-        c.lbl.setAttribute('visibility', showAll || important ? 'visible' : 'hidden');
-        c.lbl.setAttribute('font-size', showAll ? 11 : 8 / scale);
-        c.lbl.setAttribute('y', showAll ? lblY(i, 21, 11) : lblY(i, 13 / scale + 8, 8 / scale));
+        if (showAll) {
+          c.lbl.setAttribute('visibility', 'visible');
+          c.lbl.setAttribute('font-size', 11);
+          c.lbl.setAttribute('x', D.CITIES[i].x);
+          c.lbl.setAttribute('y', lblY(i, 21, 11));
+          c.lbl.setAttribute('text-anchor', 'middle');
+          c.lbl.style.strokeWidth = '';
+        }
       });
+      if (!showAll) smallNames(Math.min(k, 1.7));
       pawnK = Math.min(k, 1.8);
       placePawns();
+    }
+    // the whole board on a phone: the printed board names every city, but at this size the names would pile up,
+    // so each name gets a small readable label under (or over) its city where it has room; the busiest cities
+    // (selected, pawns, cubes, stations) get theirs first
+    const NAME_PX = 7.2; // screen px
+    function smallNames(dk) {
+      const fs = NAME_PX / scale, v = last && last.view;
+      const dotR = 8.6 * dk;
+      const boxes = [];
+      const hit = b => boxes.some(o => b.x1 < o.x2 && o.x1 < b.x2 && b.y1 < o.y2 && o.y1 < b.y2);
+      // the city dots and their cubes stay uncovered
+      D.CITIES.forEach((c, i) => {
+        boxes.push({ x1: c.x - dotR, x2: c.x + dotR, y1: c.y - dotR, y2: c.y + dotR });
+        const n = v ? v.cubes[i * 4] + v.cubes[i * 4 + 1] + v.cubes[i * 4 + 2] + v.cubes[i * 4 + 3] : 0;
+        if (n) boxes.push({ x1: c.x + 9.5 * dk, x2: c.x + (9.5 + 8.6 * Math.min(3, n)) * dk, y1: c.y - 11 * dk, y2: c.y + (-11 + 8.6 * Math.ceil(n / 3)) * dk });
+      });
+      const rank = i => {
+        if (!v) return 0;
+        let r = 0;
+        if (last.sel === i) r += 1e6;
+        if (v.pawns.includes(i)) r += 1e4;
+        r += 100 * (v.cubes[i * 4] + v.cubes[i * 4 + 1] + v.cubes[i * 4 + 2] + v.cubes[i * 4 + 3]);
+        if (v.stations.includes(i)) r += 50;
+        return r + D.CITIES[i].pop / 1e8;
+      };
+      const order = D.CITIES.map((c, i) => i).sort((a, b) => rank(b) - rank(a));
+      order.forEach(i => {
+        const c = D.CITIES[i], L = cities[i].lbl;
+        if (!cities[i].w11) cities[i].w11 = ((L.getComputedTextLength && L.getComputedTextLength()) || 0) * 11 / (+L.getAttribute('font-size') || 11);
+        // width at this size: measured once at 11 units (fallback: an average letter)
+        const w = (cities[i].w11 || c.name.length * 6.4) * fs / 11 + 2 / scale;
+        const below = { y: c.y + dotR + fs * 0.85, x: c.x, a: 'middle', x1: c.x - w / 2, x2: c.x + w / 2 };
+        const above = { y: c.y - dotR - fs * 0.2, x: c.x, a: 'middle', x1: c.x - w / 2, x2: c.x + w / 2 };
+        // no room under or over it: beside it (the cubes sit on the right, so they block that side when there are any)
+        const g = 1.5 / scale, mid = c.y + fs * 0.32;
+        const right = { y: mid, x: c.x + dotR + g, a: 'start', x1: c.x + dotR + g, x2: c.x + dotR + g + w };
+        const left = { y: mid, x: c.x - dotR - g, a: 'end', x1: c.x - dotR - g - w, x2: c.x - dotR - g };
+        const tries = (LABEL_UP.has(i) ? [above, below] : [below, above]).concat([right, left]);
+        let at = null;
+        for (const t of tries) {
+          const b = { x1: t.x1, x2: t.x2, y1: t.y - fs * 0.8, y2: t.y + fs * 0.22 };
+          if (b.x1 < 0 || b.x2 > W || b.y1 < 0 || b.y2 > H || hit(b)) continue;
+          at = t; boxes.push(b); break;
+        }
+        L.setAttribute('visibility', at ? 'visible' : 'hidden');
+        if (!at) return;
+        L.setAttribute('font-size', fs);
+        L.setAttribute('x', at.x);
+        L.setAttribute('y', at.y);
+        L.setAttribute('text-anchor', at.a);
+        L.style.strokeWidth = (2.2 / scale) + 'px';
+      });
     }
     let pawnK = 1;
     // pawns stand round the city's upper-left, clear of the cubes (right) and the station (left)

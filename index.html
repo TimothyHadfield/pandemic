@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#0f1117">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="css/table.css?v=1">
+<link rel="stylesheet" href="css/table.css?v=2">
 <style>
   :root {
     --bg: #0f1117; --bg-soft: #161923; --card: #1a1e2b; --card-hover: #212636; --line: #2a3042;
@@ -215,7 +215,7 @@
   /* teammates' seats at the far side: role card + held cards */
   .players { grid-area: players; display: flex; gap: 6px; min-width: 0; height: 48px; }
   .pchip { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; border-radius: 10px; padding: 3px 7px 3px 4px; font-size: 12px; cursor: pointer;
-    background: rgba(0,0,0,.16); border: 1px solid rgba(255,255,255,.06); transition: border-color .2s, box-shadow .2s; }
+    background: transparent; border: 1px solid transparent; transition: border-color .2s, box-shadow .2s; }
   .pchip.turn { border-color: var(--accent-warm); box-shadow: 0 0 0 1px rgba(240,179,84,.35), 0 0 16px rgba(240,179,84,.22); }
   .pchip .rc { --card-w: 29px; }
   .pchip .rc-nm { display: none; }
@@ -419,12 +419,24 @@
   html.fx-fast svg .newcube { animation-duration: .25s; }
   html.fx-fast svg .boom { animation-duration: .6s; }
   html.fx-fast svg .pawn { transition-duration: .3s; }
-  html.fx-fast .banner { animation-duration: .17s; }
+  html.fx-fast .banner, html.fx-fast .banner > * { animation-duration: .17s; }
   .ver a { color: #59607a; white-space: nowrap; }
-  .banner { position: fixed; left: 50%; top: 40%; transform: translate(-50%, -50%); z-index: 60; background: #1d2231; border: 1px solid var(--line); border-radius: 16px; padding: 20px 24px; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,.6), 0 0 0 100vmax rgba(5,7,12,.4); animation: pop .3s ease-out; min-width: 270px; }
-  .banner h2 { margin: 0 0 6px; font-size: 26px; }
-  .banner.win h2 { color: var(--good); }
-  .banner.lose h2 { color: var(--bad); }
+  /* the end of the game: a card laid on the table (the rest of the table dims), New game / Review under it */
+  .banner { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+    padding: 16px 16px calc(var(--tabbar) + 16px); background: rgba(5,7,12,.5); animation: fade .2s ease-out; }
+  .banner > * { animation: endin .32s ease-out both; }
+  @media (min-width: 900px) { .banner { padding: 16px; } }
+  @keyframes endin { from { transform: translateY(14px) scale(.9); opacity: 0; } to { transform: none; opacity: 1; } }
+  .banner .endcard { --card-w: min(210px, 54vw, 32vh); rotate: -2deg; text-align: center; cursor: default;
+    box-shadow: 0 2px 3px rgba(0,0,0,.3), 0 18px 40px rgba(0,0,0,.6); }
+  .endcard.win { --cc: #2f8f55; --hi: #5cbf80; --lo: #1a5532; }
+  .endcard.lose { --cc: #a8282e; --hi: #d9535a; --lo: #5c1216; }
+  .endcard .pc-nm { font-size: calc(var(--card-w) * .15); padding: 13% 8% 0; }
+  .endcard .pc-ic { width: 46%; margin: auto; color: #fff; filter: drop-shadow(0 1px 2px rgba(0,0,0,.35)); }
+  .endcard .ec-why { font-size: max(12px, calc(var(--card-w) * .072)); font-weight: 650; line-height: 1.25; padding: 0 12%; }
+  .endcard .pc-pp { font-size: max(11px, calc(var(--card-w) * .06)); white-space: normal; padding: 5% 8% 12%; }
+  .banner .row { gap: 10px; }
+  .banner .row .btn { min-width: 118px; box-shadow: 0 4px 12px rgba(0,0,0,.45); }
   @keyframes pop { from { transform: translate(-50%, -50%) scale(.8); opacity: 0; } to { transform: translate(-50%, -50%); opacity: 1; } }
   .flipstrip { position: fixed; left: 50%; top: 64px; transform: translateX(-50%); z-index: 55; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; width: max-content; max-width: calc(100vw - 24px); pointer-events: none; }
   /* drawn cards fly off their deck and turn face up, like flipping them over on the table */
@@ -455,16 +467,16 @@
 </div>
 
 <script src="js/fx.js?v=3"></script>
-<script src="js/table.js?v=1"></script>
+<script src="js/table.js?v=2"></script>
 <script src="js/data.js?v=4"></script>
 <script src="js/map-data.js?v=1"></script>
-<script src="js/engine.js?v=3"></script>
+<script src="js/engine.js?v=4"></script>
 <script src="js/odds.js?v=3"></script>
 <script src="js/bots.js?v=3"></script>
 <script src="js/online-game.js?v=3"></script>
 <script src="js/strength-data.js?v=3"></script>
 <script src="js/sfx.js?v=1"></script>
-<script src="js/art.js?v=8"></script>
-<script src="js/app.js?v=7"></script>
+<script src="js/art.js?v=9"></script>
+<script src="js/app.js?v=8"></script>
 </body>
 </html>

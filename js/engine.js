@@ -254,6 +254,13 @@
     s.epiDrawn++;
     s.premoved.push(EPIDEMIC);
     s.rate = Math.min(RATE_TRACK.length - 1, s.rate + 1);
+    // no infection card left to take from the bottom (every card is in the discard pile or removed): the rulebook
+    // has no case for it, so the Infect step does nothing and Intensify still puts the discard pile back on top
+    if (!s.ideck.length) {
+      log(s, 'Epidemic! No infection cards left to flip.');
+      s.queue.unshift('intensify');
+      return;
+    }
     const c = s.ideck.shift();
     const known = s.layers.reduce((a, l) => a + l.length, 0);
     if (known > s.ideck.length) { // the bottom card was inside the lowest known layer
@@ -431,7 +438,7 @@
       if (s.stations.length >= MAX_STATIONS ? !s.stations.includes(a.remove) : a.remove !== undefined) bad('Pick a station to move');
     }
     if (e === 'resilient' && !s.idisc.includes(a.city)) bad('Pick a card in the infection discard pile');
-    if (e === 'forecast' && !s.ideck.length) bad();
+    if (e === 'forecast' && !s.ideck.length) bad('The infection deck is empty');
     if (s.hands[seat].includes(card)) { takeCard(s.hands[seat], card); s.pdisc.push(card); }
     else { s.cp = -1; s.premoved.push(card); }
     const nm = s.names[seat];

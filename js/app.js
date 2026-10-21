@@ -110,6 +110,7 @@
   }
   function leaveOnline() {
     const r = net.room;
+    clearTableFx();
     store.online = false; ui.online = false; save();
     backToLocal(); resetSel();
     if (r) r.leave().catch(() => {});
@@ -168,15 +169,21 @@
     document.body.appendChild(t);
     setTimeout(() => t.remove(), 2400);
   }
+  // a finger's double tap arrives as two clicks about 100-300 ms apart: the second one must not act again
+  const TAP_GAP = 350;
   // a toast for something that isn't allowed: with a soft error sound
   function oops(msg) { toast(msg); FX.play('error'); }
   function confirmBox(msg, yes, onYes) {
+    // one question at a time: a double tap must not stack two boxes (or close the box it just opened)
+    document.querySelectorAll('.confirm-back').forEach(b => b.remove());
     const back = document.createElement('div');
+    const t0 = Date.now();
     back.className = 'confirm-back';
     back.innerHTML = '<div class="panel"><p style="margin:0 0 14px">' + esc(msg) + '</p><div class="row" style="justify-content:flex-end">' +
       '<button class="btn ghost" data-c="no">Cancel</button><button class="btn primary" data-c="yes">' + esc(yes) + '</button></div></div>';
     back.addEventListener('click', e => {
       const b = e.target.closest('[data-c]');
+      if (!b && Date.now() - t0 < TAP_GAP) return; // the second tap of a double tap lands on the dim backdrop
       if (e.target === back || b) { back.remove(); if (b && b.dataset.c === 'yes') onYes(); }
     });
     document.body.appendChild(back);
@@ -191,7 +198,9 @@
     if (opts && opts.kind) back.dataset.kind = opts.kind;
     back.innerHTML = '<div class="sheet"><div class="row"><h3 class="grow">' + esc(title) + '</h3>' +
       (opts && opts.noClose ? '' : '<button class="btn small ghost" data-close>Close</button>') + '</div><div class="scroll" style="display:flex;flex-direction:column;gap:8px">' + html + '</div></div>';
+    const t0 = Date.now();
     back.addEventListener('click', e => {
+      if (Date.now() - t0 < TAP_GAP) return; // the second tap of the double tap that opened it
       if ((e.target === back && !(opts && opts.noClose)) || e.target.closest('[data-close]')) { closeSheet(); return; }
       if (onClick) onClick(e);
     });
@@ -224,6 +233,8 @@
   const hashTab = () => { const h = (location.hash || '').slice(1); return TABS.includes(h) ? h : null; };
   window.addEventListener('popstate', e => {
     // Back with a sheet open only closes the sheet; the address stays on the tab that is shown
+    const box = $('.confirm-back');
+    if (box) { box.remove(); try { history.pushState({ tab: ui.tab }, '', '#' + ui.tab); } catch (er) { /* file:// */ } return; }
     if ($('#sheet')) { closeSheet(); try { history.pushState({ tab: ui.tab }, '', '#' + ui.tab); } catch (er) { /* file:// */ } return; }
     const tab = (e.state && TABS.includes(e.state.tab) && e.state.tab) || hashTab() || 'play';
     if (tab !== ui.tab) showTab(tab, false);
@@ -231,7 +242,7 @@
   // a typed address (#table etc.) switches tabs too
   window.addEventListener('hashchange', () => {
     const tab = hashTab();
-    if (tab && tab !== ui.tab) { closeSheet(); showTab(tab, false); }
+    if (tab && tab !== ui.tab) { closeSheet(); document.querySelectorAll('.confirm-back').forEach(b => b.remove()); showTab(tab, false); }
   });
   // help bubbles
   document.addEventListener('click', e => {
@@ -323,6 +334,30 @@
     put(vPlay, '<div class="setup"><div class="row"><button class="btn small ghost" data-on="back">Back</button><span class="grow"></span><span class="label">Play online</span></div>' + body + '</div>');
   }
 
+  // the same game open in two tabs: a move saved by the other tab is picked up here, so this tab never
+  // saves over it with an older game (the last one written would win otherwise)
+  window.addEventListener('storage', e => {
+    if (e.key !== KEY || !e.newValue) return;
+    let raw;
+    try { raw = JSON.parse(e.newValue); } catch (er) { return; }
+    if (!raw || typeof raw !== 'object') return;
+    const g = raw.game && raw.game.state ? raw.game : null;
+    store.settings = Object.assign({}, DEF, raw.settings || {});
+    store.last = raw.last || null; store.table = raw.table || null;
+    if (table && table.online) return; // an online game lives on the server, not in this tab
+    const same = g && store.game && JSON.stringify(g.state) === JSON.stringify(store.game.state);
+    if (same) return;
+    clearTimeout(botTimer); botTimer = null;
+    if (!g) { if (table) { clearTableFx(); table = null; store.game = null; resetSel(); } }
+    else {
+      store.game = g; ME = Number.isInteger(g.me) && g.me >= 0 && g.me < g.state.n ? g.me : 0;
+      if (!Array.isArray(g.checks)) g.checks = [];
+      table = new LocalTable(g.state);
+      if (!g.state.over) { clearTableFx(); showEnd.done = null; }
+      resetSel(); fxQuiet = true;
+    }
+    if (ui.tab === 'play') { closeSheet(); renderPlay(); } else render();
+  });
   function startLocal() {
     const s = store.settings;
     const seed = (Math.random() * 4294967296) >>> 0;
@@ -333,7 +368,8 @@
     ME = 0;
     store.game = { state, me: 0, checks: [] };
     table = new LocalTable(state);
-    resetSel(); lastSeen = null; ui.check = null;
+    resetSel(); lastSeen = null; ui.check = null; showEnd.done = null;
+    clearTableFx();
     save();
     FX.play('shuffle');
     renderPlay();
@@ -764,18 +800,45 @@
     else if (x.anim === 'erad') { const vl = vialEl(x.col); if (vl) FX.pop(vl); }
     else if (x.anim === 'myturn') { const el = infoEl(); if (el) FX.flash(el, 'var(--accent-warm)'); }
   }
+  // the end of the game, as a card laid on the table (our own face: green when the world is saved, red when lost)
+  const END_ICON = {
+    cured: '<svg class="pc-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">' +
+      [3.5, 9, 14.5, 20].map((x, k) => '<path d="M' + (x - 2) + ' 6h4v1.2h-.7v8.6a1.3 1.3 0 0 1-2.6 0V7.2H' + (x - 2) + 'z" fill="' + ['#4f8ff7', '#f2c94c', '#2b2e38', '#e5484d'][k] + '"/>').join('') + '</svg>',
+    outbreaks: ICON.out.replace('<svg ', '<svg class="pc-ic" '),
+    cubes: '<svg class="pc-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z M4 7.5l8 4.5 8-4.5 M12 12v9"/></svg>',
+    cards: ICON.deck.replace('<svg ', '<svg class="pc-ic" '),
+  };
   function showEnd(v) {
     if (showEnd.done === v.turn + ':' + v.over.why) return;
     showEnd.done = v.turn + ':' + v.over.why;
     if (!table.online) saveLast(v, (store.game && store.game.checks) || []);
     const b = document.createElement('div');
     b.className = 'banner ' + (v.over.win ? 'win' : 'lose');
-    b.innerHTML = '<h2>' + (v.over.win ? 'Cured!' : 'Game over') + '</h2><p class="muted" style="margin:0 0 12px">' +
-      (v.over.win ? 'All four cures in ' + v.turn + ' turns.' : ({ outbreaks: 'Eight outbreaks.', cubes: 'A disease ran out of cubes.', cards: 'The player deck ran out.' }[v.over.why])) + '</p>' +
-      '<div class="row" style="justify-content:center"><button class="btn primary" data-g="new">New game</button><button class="btn" data-go="study">Review</button></div>';
-    b.addEventListener('click', () => b.remove());
+    const why = v.over.win ? 'All four cures in ' + v.turn + ' turns.' : ({ outbreaks: 'Eight outbreaks.', cubes: 'A disease ran out of cubes.', cards: 'The player deck ran out.' }[v.over.why] || '');
+    b.innerHTML = '<span class="pc tbl-card endcard ' + (v.over.win ? 'win' : 'lose') + '" role="status"><span class="pc-nm">' + (v.over.win ? 'Cured!' : 'Game over') + '</span>' +
+      (END_ICON[v.over.why] || '') + '<span class="ec-why">' + esc(why) + '</span>' +
+      '<span class="pc-pp">' + esc('Turn ' + v.turn + ' · ' + v.outbreaks + ' outbreak' + (v.outbreaks === 1 ? '' : 's')) + '</span></span>' +
+      '<div class="row"><button class="btn primary" data-end="new">New game</button><button class="btn" data-end="study">Review</button></div>';
+    // its buttons work here (it sits outside the Play view); a tap anywhere else puts it away
+    b.addEventListener('click', e => {
+      const k = e.target.closest('[data-end]');
+      b.remove();
+      if (k && k.dataset.end === 'new') newFromEnd();
+      else if (k) showTab('study', true);
+    });
     document.body.appendChild(b);
   }
+  function newFromEnd() {
+    clearTableFx();
+    if (table && table.online) { leaveOnline(); return; }
+    dropGame();
+  }
+  // the cards still flipping and the end box belong to the game that just ended
+  function clearTableFx() {
+    clearTimeout(flipTimer);
+    document.querySelectorAll('.banner, .flipstrip').forEach(b => b.remove());
+  }
+  function dropGame() { clearTableFx(); showEnd.done = null; store.game = null; table = null; save(); resetSel(); renderPlay(); }
   function saveLast(v, checks) {
     const outs = {};
     v.log.forEach(e => { const m = /^Outbreak in (.+)!$/.exec(e.m); if (m) outs[m[1]] = (outs[m[1]] || 0) + 1; });
@@ -786,8 +849,14 @@
   }
 
   // ---------------------------------------------------------------- doing things
+  // a double tap on Treat, a move or Infect is one move, not two: the second tap lands on the new screen, often
+  // only after it has been drawn, so the gap is counted from the end of the first move's screen update
+  let lastAct = 0;
   function act(a, seat) {
-    if (ui.busy) return;
+    if (ui.busy || Date.now() - lastAct < TAP_GAP) return;
+    try { act2(a, seat); } finally { lastAct = Date.now(); }
+  }
+  function act2(a, seat) {
     seat = seat === undefined ? ME : seat;
     const v = table.view();
     // remember how this turn compares with the planner (Study: points lost)
@@ -859,6 +928,8 @@
     const extra = !AUTO && ((s.lastInf && s.lastInf.length) || (s.lastEpi && s.lastEpi.length)) ? 900 : 0;
     botTimer = setTimeout(() => {
       botTimer = null;
+      // only the tab you are looking at moves the computers (two open tabs must not both play their turn)
+      if (document.hidden) return; // picked up again when the tab comes back (visibilitychange)
       if (!table || table.online || ui.tab !== 'play') { if (table && !table.online) scheduleLater(); return; }
       const st = table.state;
       const p = E.toAct(st).filter(q => AUTO || !st.human[q])[0];
@@ -867,6 +938,7 @@
       renderPlay();
     }, delay + extra);
   }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.tab === 'play' && table && !table.online) renderPlay(); });
   function scheduleLater() { setTimeout(() => { if (ui.tab === 'play' && table && !table.online) renderPlay(); }, 400); }
 
   // ---------------------------------------------------------------- sheets
@@ -979,11 +1051,7 @@
     const g = t.closest('[data-g]');
     if (!g) return;
     const k = g.dataset.g;
-    if (k === 'new') {
-      document.querySelectorAll('.banner').forEach(b => b.remove());
-      if (table.online) { leaveOnline(); return; }
-      store.game = null; table = null; save(); resetSel(); renderPlay(); return;
-    }
+    if (k === 'new') { newFromEnd(); return; }
     if (k === 'go') act({ t: 'go' });
     else if (k === 'pass') act({ t: 'pass' });
     else if (k === 'rp') act({ t: 'event', card: EV.resilient, city: +g.dataset.c });
@@ -1052,7 +1120,7 @@
       if (!b) return;
       closeSheet();
       if (b.dataset.m === 'leave') confirmBox('Leave this game? A computer takes your seat.', 'Leave', leaveOnline);
-      if (b.dataset.m === 'new') confirmBox('Start a new game? This one ends.', 'New game', () => { store.game = null; table = null; save(); resetSel(); renderPlay(); });
+      if (b.dataset.m === 'new') confirmBox('Start a new game? This one ends.', 'New game', dropGame);
     }, { keep: true });
   }
 
@@ -1164,6 +1232,7 @@
       t.mode = t.epiLeft > 0 ? 'epi' : 'draw';
       trEpiIfNoDeck(t);
       trSounds(t, c, o0, k0, 3);
+      trLoss(t, o0);
       flash(c); save(); renderTable(); return;
     }
     // draw mode: an infection card was flipped
@@ -1176,7 +1245,17 @@
     t.idisc.push(c);
     t.after = false;
     trSounds(t, c, o0, k0, 0);
+    trLoss(t, o0);
     flash(c); save(); renderTable();
+  }
+  // the tracker follows a real game: say so when the cubes you entered mean the team has just lost
+  function trLoss(t, o0) {
+    if (o0 < D.MAX_OUTBREAKS && t.outbreaks >= D.MAX_OUTBREAKS) { toast(D.MAX_OUTBREAKS + ' outbreaks: the team loses'); return; }
+    for (let col = 0; col < 4; col++) {
+      let n = 0;
+      for (let c = 0; c < 48; c++) n += t.cubes[c * 4 + col];
+      if (n > D.CUBES_PER_COLOR && !(t.lostCubes || []).includes(col)) { t.lostCubes = (t.lostCubes || []).concat([col]); toast('No ' + COLOR_NAMES[col].toLowerCase() + ' cubes left: the team loses'); return; }
+    }
   }
   // tracker: the card flips, its cubes knock down (or the city breaks out), an Epidemic reshuffles the pile
   function trSounds(t, c, o0, k0, epi) {

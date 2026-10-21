@@ -91,5 +91,6 @@ Status: ✅ two or more sources agree · ☑️ one source, or our reading of it
 
 ## Open questions ⚠️
 - **Government Grant with all 6 stations out:** the 2nd edition card text was not in the PDF we read. We use the usual ruling for the Build action: move a station from elsewhere.
-- **Forecast with fewer than 6 cards left:** you reorder what is left (engine does this).
+- **Forecast with fewer than 6 cards left:** you reorder what is left (engine does this). With none left it can't be played ("The infection deck is empty").
+- **Epidemic with no infection cards left** (every card in the discard pile or removed; almost impossible in a real game): the rulebook [R] has no case for it. The engine raises the rate, skips the Infect step (there is no bottom card) and still does Intensify, the same as the Table tracker. Before 2026-10-20 the engine crashed here (test "epidemic with an empty infection deck").
 - **Online event timing:** in online games you can play events when the game asks you (before each infection step, and during an Epidemic for Resilient Population), not at an arbitrary moment. At a real table events can be played almost any time; this simplification avoids two people acting at once.
