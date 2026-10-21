@@ -327,7 +327,8 @@ try {
     const { ctx, page } = await open({ game: { state: s, me: 0, checks: [] } }, { settle: 900 });
     const vis = await page.evaluate(() => {
       const ls = Array.from(document.querySelectorAll('#g-map text.lbl')).filter(t => t.getAttribute('visibility') !== 'hidden');
-      const rs = ls.map(t => t.getBoundingClientRect());
+      // ink boxes: the text box minus the empty line space above the capitals and below the letters
+      const rs = ls.map(t => { const r = t.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top + r.height * 0.2, bottom: r.bottom - r.height * 0.22, height: r.height }; });
       let overlap = 0;
       for (let i = 0; i < rs.length; i++) for (let j = i + 1; j < rs.length; j++) {
         const a = rs[i], b = rs[j];

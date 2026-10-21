@@ -250,14 +250,15 @@
     // ---------------------------------------------------------------- zoom: one auto fit, manual zoom on demand
     // Auto (default): the whole board fits the box, centred, with a small margin, and re-fits whenever the box
     // changes size. Pinch / wheel / + zooms in (drag then pans); the fit button or zooming back out returns to auto.
-    const PAD = 8; // px of sea around the board in auto
+    // px of sea around the board in auto (a phone-width box keeps less, so the board gets the width)
+    const pad = () => (boxW && boxW < 600 ? 5 : 8);
     let vb = { x: 0, y: 0, w: W, h: H }, base = { x: 0, y: 0, w: W, h: H };
     let auto = true, boxW = 0, boxH = 0, anim = 0;
     let scale = 1;
     let last = null;
 
     function fitBox() {
-      const s = Math.min((boxW - 2 * PAD) / W, (boxH - 2 * PAD) / H);
+      const s = Math.min((boxW - 2 * pad()) / W, (boxH - 2 * pad()) / H);
       const w = boxW / s, h = boxH / s;
       return { x: (W - w) / 2, y: (H - h) / 2, w, h };
     }
@@ -284,7 +285,7 @@
       auto = false;
       const minW = base.w / 4;
       if (v.w < minW) { const k = minW / v.w; v.x += v.w * (1 - k) / 2; v.y += v.h * (1 - k) / 2; v.w *= k; v.h *= k; }
-      const m = PAD * v.w / boxW; // the same small margin, in board units at this zoom
+      const m = pad() * v.w / boxW; // the same small margin, in board units at this zoom
       const ax = (lo, len, span) => (len >= span + 2 * m ? (span - len) / 2 : Math.min(Math.max(lo, -m), span + m - len));
       v.x = ax(v.x, v.w, W); v.y = ax(v.y, v.h, H);
       return v;
@@ -318,7 +319,8 @@
     // keep dots, pawns and text readable at any zoom
     function sizeThings() {
       const k = Math.max(1, 0.62 / scale);
-      const showAll = 11 * scale >= 7.2;
+      // every name at full size once it reads at NAME_PX or more; below that, the placed small names
+      const showAll = 11 * scale >= NAME_PX;
       cities.forEach((c, i) => {
         c.g.setAttribute('transform', 'translate(' + D.CITIES[i].x + ' ' + D.CITIES[i].y + ') scale(' + Math.min(k, 1.7) + ')');
         c.risk.setAttribute('r', 12 * Math.min(k, 1.7));
@@ -339,17 +341,28 @@
     // the whole board on a phone: the printed board names every city, but at this size the names would pile up,
     // so each name gets a small readable label under (or over) its city where it has room; the busiest cities
     // (selected, pawns, cubes, stations) get theirs first
-    const NAME_PX = 7.2; // screen px
+    const PANELS = [{ x1: 602, x2: 814, y1: 5, y2: 55 }, { x1: 14, x2: 150, y1: 306, y2: 494 }, { x1: 338, x2: 510, y1: 420, y2: 496 },
+      { x1: 616, x2: 742, y1: 384, y2: 474 }, { x1: 876, x2: 998, y1: 12, y2: 102 }];
+    const NAME_PX = 10; // screen px: the smallest name size that reads on a phone (7.2 px did not)
     function smallNames(dk) {
       const fs = NAME_PX / scale, v = last && last.view;
       const dotR = 8.6 * dk;
       const boxes = [];
       const hit = b => boxes.some(o => b.x1 < o.x2 && o.x1 < b.x2 && b.y1 < o.y2 && o.y1 < b.y2);
-      // the city dots and their cubes stay uncovered
+      // the city dots, their cubes, stations and pawns stay uncovered
+      const pk = Math.min(dk, 1.8);
       D.CITIES.forEach((c, i) => {
         boxes.push({ x1: c.x - dotR, x2: c.x + dotR, y1: c.y - dotR, y2: c.y + dotR });
         const n = v ? v.cubes[i * 4] + v.cubes[i * 4 + 1] + v.cubes[i * 4 + 2] + v.cubes[i * 4 + 3] : 0;
         if (n) boxes.push({ x1: c.x + 9.5 * dk, x2: c.x + (9.5 + 8.6 * Math.min(3, n)) * dk, y1: c.y - 11 * dk, y2: c.y + (-11 + 8.6 * Math.ceil(n / 3)) * dk });
+        if (v && v.stations.includes(i)) boxes.push({ x1: c.x - 19 * dk, x2: c.x - 4 * dk, y1: c.y - 12 * dk, y2: c.y + 4 * dk });
+      });
+      // the printed panels (tracks, cures, card spaces) stay readable too
+      PANELS.forEach(b => boxes.push(b));
+      if (v) v.pawns.forEach((ci, p) => {
+        const c = D.CITIES[ci], o = OFF[p % 4];
+        const x = c.x + o[0] * pk, y = c.y + o[1] * pk;
+        boxes.push({ x1: x - 6 * pk, x2: x + 6 * pk, y1: y - 16 * pk, y2: y + 1 * pk });
       });
       const rank = i => {
         if (!v) return 0;
@@ -372,7 +385,10 @@
         const g = 1.5 / scale, mid = c.y + fs * 0.32;
         const right = { y: mid, x: c.x + dotR + g, a: 'start', x1: c.x + dotR + g, x2: c.x + dotR + g + w };
         const left = { y: mid, x: c.x - dotR - g, a: 'end', x1: c.x - dotR - g - w, x2: c.x - dotR - g };
-        const tries = (LABEL_UP.has(i) ? [above, below] : [below, above]).concat([right, left]);
+        // crowded spots: the same row slid so the name starts or ends at the dot
+        const slid = t => [{ y: t.y, x: c.x - dotR, a: 'start', x1: c.x - dotR, x2: c.x - dotR + w }, { y: t.y, x: c.x + dotR, a: 'end', x1: c.x + dotR - w, x2: c.x + dotR }];
+        const first = LABEL_UP.has(i) ? above : below, second = LABEL_UP.has(i) ? below : above;
+        const tries = [first, second, right, left].concat(slid(first), slid(second));
         let at = null;
         for (const t of tries) {
           const b = { x1: t.x1, x2: t.x2, y1: t.y - fs * 0.8, y2: t.y + fs * 0.22 };
@@ -535,6 +551,7 @@
 
     // ---------------------------------------------------------------- touch: tap, drag, pinch, double tap
     const pts = new Map();
+    const CROWD_PX = 24, CLOSE_SCALE = 1; // finger radius in screen px; the close-up's scale (names 11 px, all shown)
     let drag = null, moved = false, lastTap = 0;
     const toMap = (cx, cy) => {
       const r = svg.getBoundingClientRect();
@@ -582,8 +599,12 @@
         D.CITIES.forEach(c => { const d = Math.hypot(c.x - p.x, c.y - p.y); if (d < bd) { bd = d; best = c.i; } });
         const lim = Math.max(22, 16 / scale);
         const city = bd <= lim ? best : -1;
+        // a crowded spot too small for a finger (Europe, East Asia on a phone): the tap magnifies it
+        // instead of guessing a city; the next tap picks one, the fit button goes back to the whole board
+        const near = D.CITIES.filter(c => Math.hypot(c.x - p.x, c.y - p.y) * scale <= CROWD_PX).length;
+        if (city >= 0 && near >= 2 && scale < CLOSE_SCALE * 0.8) { lastTap = 0; zoomBy(CLOSE_SCALE / scale, p, 0.5, 0.5, true); }
         // double tap on empty board while zoomed: back to auto (taps on cities stay taps)
-        if (city < 0 && !auto && now - lastTap < 300) { lastTap = 0; reset(); }
+        else if (city < 0 && !auto && now - lastTap < 300) { lastTap = 0; reset(); }
         else { lastTap = city < 0 ? now : 0; if (opts.onTap) opts.onTap(city); }
       }
       drag = null;

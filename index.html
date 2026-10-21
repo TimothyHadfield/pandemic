@@ -245,6 +245,12 @@
   .left-pips { display: inline-flex; gap: 3px; }
   .left-pips i { width: 8px; height: 8px; border-radius: 50%; background: var(--accent-warm); display: inline-block; }
   .left-pips i.off { background: #3a4258; }
+  /* phone held upright: the board runs edge to edge and is exactly as tall as it needs (no empty sea band); the spare height goes to your hand */
+  @media (max-width: 899px) and (orientation: portrait) {
+    #game { grid-template-rows: auto auto minmax(0, calc(50vw + 6px)) auto auto minmax(0, 1fr) auto; }
+    #g-map { width: calc(100% + 20px); margin: 0 -10px; }
+    #g-fan { --card-w: 66px; }
+  }
   /* short phones (iPhone SE and the like): a little tighter so the buttons keep their full height */
   @media (max-width: 899px) and (max-height: 600px) and (orientation: portrait) {
     #game { gap: 5px; }
@@ -259,8 +265,12 @@
     :root { --tabbar: 42px; }
     nav.tabs button { flex-direction: row; gap: 6px; }
     .view { padding: 5px 10px 4px; }
-    #game { grid-template-columns: minmax(0, 1fr) 286px; gap: 5px; grid-template-rows: auto auto auto minmax(0, 1fr) auto;
-      grid-template-areas: "status players" "map info" "map risk" "map hand" "map acts"; }
+    /* the board takes the left side's full width (it is width-bound), your hand sits under it instead of beside it */
+    #game { grid-template-columns: minmax(0, 1fr) 250px; gap: 5px; grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+      grid-template-areas: "status players" "map info" "map risk" "map acts" "hand acts"; }
+    .acts { flex-wrap: wrap; align-content: flex-end; overflow: visible; }
+    /* three teammates in the narrower column: a name cut to one letter says nothing, the role card already shows who it is */
+    .pchip[style*="--n:3"] .nmx { display: none; }
     .status .stat { padding: 0 6px; }
     .info { height: 56px; }
     .risk, .rchip { height: 34px; }
@@ -476,7 +486,7 @@
 <script src="js/online-game.js?v=3"></script>
 <script src="js/strength-data.js?v=3"></script>
 <script src="js/sfx.js?v=1"></script>
-<script src="js/art.js?v=9"></script>
+<script src="js/art.js?v=10"></script>
 <script src="js/app.js?v=8"></script>
 </body>
 </html>
