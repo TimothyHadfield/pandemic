@@ -52,7 +52,7 @@ async function tapCity(page, c) {
 }
 const browser = await pw[ENGINE].launch();
 try {
-  for (const vp of [{ n: 'phone', w: 393, h: 659, touch: true }, { n: 'small phone', w: 320, h: 568, touch: true }, { n: 'phone on its side', w: 659, h: 393, touch: true }]) {
+  for (const vp of [{ n: 'phone', w: 393, h: 659, touch: true }, { n: 'small phone', w: 320, h: 568, touch: true }, { n: 'phone on its side', w: 659, h: 393, touch: true }, { n: 'tablet', w: 820, h: 1180, touch: true }]) {
     console.log(vp.n + ' ' + vp.w + 'x' + vp.h + ' (' + ENGINE + ')');
     const ctx = await browser.newContext({ viewport: { width: vp.w, height: vp.h }, hasTouch: vp.touch, isMobile: vp.touch && ENGINE !== 'firefox' });
     await ctx.addInitScript(([k, v]) => { try { if (!sessionStorage.getItem('seeded')) { localStorage.setItem(k, v); localStorage.setItem('coach-offer:pandemic-first', '1'); sessionStorage.setItem('seeded', '1'); } } catch (e) {} }, [KEY, store]);
@@ -160,6 +160,14 @@ try {
     console.log('    steps seen: ' + seen.join(' > '));
     check(seen.join('|') === 'One team|Your hand|Share a card|Discover a cure|Move|Treat|End of the turn', 'the guided game walks through share, cure, move, treat, end of turn');
     check(g.tutorial && g.state.cured[0] === 1 && g.state.cubes[W * 4] === 0, 'blue is cured and Washington is clear');
+    // leaving the guided game is never a loss
+    await page.evaluate(() => { const b = document.querySelector('.coach-bubble .coach-btn'); if (b && /skip/i.test(b.textContent)) b.click(); });
+    await page.click('#g-menu'); await page.waitForSelector('#sheet [data-m="new"]'); await page.waitForTimeout(400);
+    await page.click('#sheet [data-m="new"]');
+    if (await page.$('.confirm-back [data-c="yes"]')) await page.click('.confirm-back [data-c="yes"]');
+    await page.waitForTimeout(300);
+    const ts = await page.evaluate(() => Profile.stats());
+    check(ts.losses === 0, 'quitting the guided game is not a loss (' + ts.losses + ' lost)');
     check(!errs.length, 'no page errors ' + errs.join(' | '));
     await ctx.close();
   }

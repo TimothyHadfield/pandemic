@@ -59,7 +59,8 @@
     // Undo: your own actions in your own turn, until cards are drawn or flipped (nothing hidden is ever taken back)
     if (s.human[seat]) g.moved = true;
     if (s.human[seat] && before.phase === 'actions' && before.cur === seat && s.phase === 'actions' && s.cur === seat && !s.over && !g.daily && a.t !== 'event') {
-      g.undo = (g.undo || []).concat([{ state: before, frames: (g.frames || []).length }]).slice(-12);
+      const fl = g.frames && g.frames.length ? g.frames[g.frames.length - 1] : null;
+      g.undo = (g.undo || []).concat([{ state: before, frames: (g.frames || []).length, lastM: fl ? fl.m.slice() : null }]).slice(-12);
     } else g.undo = [];
     if (!g.frames || !g.frames.length) addFrame(g, before, null);
     addFrame(g, s, before);
@@ -304,6 +305,7 @@
   // ================================================================== PLAY
   const vPlay = $('#v-play');
   function renderPlay() {
+    if (ui.replay && ui.replay.play && !ui.replay.timer && ui.tab === 'play') replayTick();
     if (table) renderGame();
     else if (ui.online) renderOnline();
     else renderSetup();
@@ -693,7 +695,7 @@
       return '<span class="rchip" data-city="' + c + '"><span class="dot" style="background:' + HEX[col] + '"></span>' + esc(cname(c)) +
         (own ? ' ' + own : '') + ' <b class="pct" style="color:' + (odds.out[c] > 0.004 ? heat(odds.out[c], 0.4, 0) : heat(odds.draw[c] * (1 + own), 1, 0)) + '">' +
         (odds.out[c] > 0.004 ? 'boom ' + pct(odds.out[c]) : pct(odds.draw[c])) + '</b></span>';
-    }).join('') + (rows.length ? '<button class="rchip more" data-g="risks" aria-label="All infection odds">All ' + rows.length + '</button>' : ''));
+    }).join('') + (rows.length ? '<button class="rchip more" data-g="risks" data-n="' + rows.length + '" aria-label="All infection odds">All ' + rows.length + '</button>' : ''));
     fitRisk(box);
   }
   // the strip shows only whole chips: the ones that don't fit are hidden, and "All N" opens the full list
@@ -702,7 +704,8 @@
     if (!W) return;
     const chips = Array.from(box.children), more = box.querySelector('.more');
     chips.forEach(c => { c.style.display = ''; });
-    if (box.scrollWidth <= W + 1) { if (more) more.style.display = 'none'; return; }
+    // everything fits: the "All N" chip is only needed when some cities have no chip of their own
+    if (box.scrollWidth <= W + 1) { if (more && box.querySelectorAll('[data-city]').length >= +more.dataset.n) more.style.display = 'none'; return; }
     const gap = parseFloat(getComputedStyle(box).columnGap) || 6;
     const room = W - (more ? more.offsetWidth + gap : 0);
     // most dangerous first: once one chip doesn't fit, the rest go too (a smaller, safer city must not jump the queue)
@@ -1020,7 +1023,7 @@
   // a local game left before its end counts as a loss, once you have made a move in it
   function quitGame() {
     const g = store.game;
-    if (!g || !g.state || g.state.over || !g.moved || g.recorded || (table && table.online)) return;
+    if (!g || !g.state || g.state.over || !g.moved || g.recorded || g.tutorial || (table && table.online)) return;
     try { recordGame(E.view(g.state, g.me || 0), true); } catch (e) { /* ignore */ }
   }
   // ---------------------------------------------------------------- end-of-game replay (local games): the board after every move
@@ -1041,6 +1044,7 @@
     clearTimeout(r.timer);
     if (!r.play) return;
     r.timer = setTimeout(() => {
+      r.timer = null; // another tab: it waits, and picks up again when Play is shown (renderPlay)
       if (!ui.replay || ui.tab !== 'play') return;
       const n = store.game.frames.length;
       if (r.i >= n - 1) { r.play = false; renderPlay(); return; }
@@ -1089,9 +1093,12 @@
     if (!g || !g.undo || !g.undo.length || (table && table.online) || g.daily) return;
     const u = g.undo.pop();
     g.state = u.state; table.state = u.state;
-    if (g.frames) g.frames.length = Math.min(g.frames.length, u.frames || g.frames.length);
+    if (g.frames && u.frames != null) {
+      g.frames.length = Math.min(g.frames.length, u.frames);
+      if (u.lastM && g.frames.length) g.frames[g.frames.length - 1].m = u.lastM;
+    }
     g.helped = true; save();
-    resetSel(); ui.check = null; lastSeen = null; fxQuiet = true;
+    resetSel(); lastSeen = null; fxQuiet = true; // ui.check stays: the turn is still scored against its start
     FX.play('cardSlide');
     if (window.COACH) COACH.emit('undo');
     toast('Took back your last action — this game is unrated now');
@@ -1728,7 +1735,7 @@
       }
       return;
     }
-    if (e.target.closest('[data-reset]')) confirmBox('Clear the saved game and the tracker?', 'Clear', () => { if (!(table && table.online)) quitGame(); store.game = null; store.table = null; table = table && table.online ? table : null; ui.replay = null; save(); toast('Cleared'); });
+    if (e.target.closest('[data-reset]')) confirmBox('Clear the saved game and the tracker?' + (store.game && store.game.state && !store.game.state.over && store.game.moved && !store.game.tutorial && !(table && table.online) ? ' The game counts as a loss.' : ''), 'Clear', () => { if (!(table && table.online)) quitGame(); store.game = null; store.table = null; table = table && table.online ? table : null; ui.replay = null; save(); toast('Cleared'); });
   });
 
   // ------------------------------------------------------------------ start

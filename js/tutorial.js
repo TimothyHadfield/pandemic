@@ -38,19 +38,23 @@
     const v = () => ctx.v();
     const me = () => { const x = v(); return x && x.phase === 'actions' && x.cur === 0 && !x.over ? x : null; };
     const W = I['Washington'], A = I['Atlanta'];
+    // a step whose chance has passed is skipped, so the guide never waits for something that can't happen any more
+    const past = () => { const x = v(); return !!x && (x.over || x.turn > 1 || x.cur !== 0); };
+    const cantShare = () => { const x = v(); return !!x && !x.hands[0].includes(A) && (x.pawns[0] !== A || !x.hands.some(h => h.includes(A))); };
+    const cantCure = () => { const x = v(); return !!x && !x.cured[0] && (cantShare() || x.pawns[0] !== A); };
     return [
       { title: 'One team', target: '#g-players', next: true,
         text: 'Pandemic is played together: you and your computer teammate win or lose as a team. Find a cure for all four diseases before the outbreaks, the cubes or the player cards run out.' },
       { title: 'Your hand', target: '#g-hand', next: true,
         text: 'You are the Scientist: a cure takes you only 4 cards of one colour (others need 5). You hold 3 blue. Your teammate, in Atlanta with you, holds the Atlanta card.' },
-      { title: 'Share a card', target: '[data-g="share"]', when: () => !!me(), until: () => { const x = v(); return !!x && x.hands[0].includes(A); },
+      { title: 'Share a card', target: '[data-g="share"]', skipIf: () => past() || cantShare(), when: () => !!me(), until: () => { const x = v(); return !!x && x.hands[0].includes(A); },
         text: 'Two players in the same city can pass that city’s card. Tap Share, then Take Atlanta.' },
-      { title: 'Discover a cure', target: '[data-cure="0"]', when: () => !!me(), until: () => { const x = v(); return !!x && !!x.cured[0]; },
+      { title: 'Discover a cure', target: '[data-cure="0"]', skipIf: () => past() || cantCure(), when: () => !!me(), until: () => { const x = v(); return !!x && !!x.cured[0]; },
         text: 'Four blue cards at a research station (Atlanta has one): tap Cure. Each action costs one of your 4 actions a turn.' },
       // once a city is picked the bubble moves to its panel, so it never covers the Drive button
-      { title: 'Move', target: () => (typeof document !== 'undefined' && document.querySelector('#g-info [data-mv]') ? '#g-info' : '#g-map'), when: () => !!me(), until: () => { const x = v(); return !!x && x.pawns[0] === W; },
+      { title: 'Move', target: () => (typeof document !== 'undefined' && document.querySelector('#g-info [data-mv]') ? '#g-info' : '#g-map'), skipIf: past, when: () => !!me(), until: () => { const x = v(); return !!x && x.pawns[0] === W; },
         text: 'Washington has 3 blue cubes. Tap Washington on the board (tap again if the board zooms in), then Drive.' },
-      { title: 'Treat', target: '#g-acts', when: () => !!me() && me().pawns[0] === W, until: () => { const x = v(); return !!x && !x.cubes[W * 4]; },
+      { title: 'Treat', target: '#g-acts', skipIf: () => past() || (() => { const x = v(); return !!x && x.pawns[0] !== W && x.left === 0; })(), when: () => !!me() && me().pawns[0] === W, until: () => { const x = v(); return !!x && !x.cubes[W * 4]; },
         text: 'Treat removes one cube, but blue is cured now, so one Treat clears all three.' },
       { title: 'End of the turn', target: '#g-map', when: () => { const x = v(); return !!x && (x.turn > 1 || x.cur !== 0); }, next: true,
         text: 'Your 4 actions are used, so your turn ended (End turn does it early). You drew 2 player cards, then infection cards were flipped: each puts a cube on its city. A fourth cube makes an outbreak.' },
