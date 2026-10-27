@@ -190,10 +190,15 @@ try {
     await page.waitForTimeout(300);
     const r0 = await page.evaluate(k => ({ info: document.querySelector('#g-info2, #g-info').textContent, n: JSON.parse(localStorage.getItem(k)).game.frames.length }), KEY);
     check(/Replay · turn 1/.test(r0.info) && r0.n > 20, 'replay starts at turn 1 (' + r0.n + ' moves recorded)');
+    // the replay plays by itself: pause it, then Next turn twice = two turns on
+    await page.click('#g-acts [data-g="rv-play"]'); await page.waitForTimeout(150);
+    const turnNow = () => page.evaluate(() => +/turn (\d+)/.exec(document.querySelector('#g-info2 .p1').textContent)[1]);
+    const t0 = await turnNow();
     await page.click('#g-acts [data-g="rv-turn"]'); await page.click('#g-acts [data-g="rv-turn"]');
     await page.waitForTimeout(200);
-    const r1 = await page.evaluate(() => document.querySelector('#g-info2').textContent);
-    check(/Replay · turn 3/.test(r1), 'Next turn steps through the turns (' + r1.slice(0, 40) + ')');
+    const t1 = await turnNow();
+    const lastT = await page.evaluate(k => { const f = JSON.parse(localStorage.getItem(k)).game.frames; return f[f.length - 1].t; }, KEY);
+    check(t1 === Math.min(t0 + 2, lastT), 'Next turn steps through the turns (turn ' + t0 + ' → ' + t1 + ')');
     const at = () => page.evaluate(() => +/(\d+) \/ \d+/.exec(document.querySelector('#g-info2 .p1 span').textContent)[1]);
     const i0 = await at();
     await page.click('#g-acts [data-g="rv-play"]'); await page.waitForTimeout(2000);
