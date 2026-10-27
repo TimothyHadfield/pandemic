@@ -53,10 +53,41 @@
   LocalTable.prototype.view = function () { return E.view(this.state, ME); };
   LocalTable.prototype.toAct = function () { return E.toAct(this.state); };
   LocalTable.prototype.act = function (seat, a) {
+    const g = store.game, before = this.state;
     this.state = E.apply(this.state, seat, a);
-    store.game.state = this.state; save();
-    return this.state;
+    const s = this.state;
+    // Undo: your own actions in your own turn, until cards are drawn or flipped (nothing hidden is ever taken back)
+    if (s.human[seat]) g.moved = true;
+    if (s.human[seat] && before.phase === 'actions' && before.cur === seat && s.phase === 'actions' && s.cur === seat && !s.over && !g.daily && a.t !== 'event') {
+      g.undo = (g.undo || []).concat([{ state: before, frames: (g.frames || []).length }]).slice(-12);
+    } else g.undo = [];
+    if (!g.frames || !g.frames.length) addFrame(g, before, null);
+    addFrame(g, s, before);
+    g.state = s; save();
+    return s;
   };
+  // the replay: the board after every move (cubes, pawns, stations, cures, markers) and what happened
+  function frameOf(s, msgs) {
+    return { t: s.turn, cur: s.cur, c: s.cubes.join(''), p: s.pawns.slice(), st: s.stations.slice(), cu: s.cured.join('') + s.erad.join(''),
+      o: s.outbreaks, r: s.rate, pd: s.pdeck ? s.pdeck.length : s.pdeckCount, ic: s.ideck ? s.ideck.length : s.ideckCount,
+      id: s.idisc.length ? s.idisc[s.idisc.length - 1] : -1, pdc: s.pdisc.length ? s.pdisc[s.pdisc.length - 1] : -1, m: msgs };
+  }
+  // log lines the move added (the log keeps only its last 120 lines, so line up on the previous last line)
+  function newLines(before, s) {
+    const a = before.log, b = s.log;
+    if (!a.length) return b;
+    const key = JSON.stringify(a[a.length - 1]);
+    for (let d = 0; d <= 12 && d < b.length; d++) if (JSON.stringify(b[b.length - 1 - d]) === key) return b.slice(b.length - d);
+    return b.slice(-6);
+  }
+  function addFrame(g, s, before) {
+    if (!g.frames) g.frames = [];
+    const last = g.frames[g.frames.length - 1];
+    const f = frameOf(s, (before ? newLines(before, s) : []).map(e => e.m).slice(-6));
+    if (last && last.c === f.c && last.p.join() === f.p.join() && last.st.join() === f.st.join() && last.cu === f.cu && last.t === f.t) { if (f.m.length) last.m = last.m.concat(f.m).slice(-6); return; }
+    g.frames.push(f);
+    if (g.frames.length > 500) g.frames.splice(1, g.frames.length - 500);
+  }
   let table = null;
   if (store.game && store.game.state) {
     // a saved game must survive everything the game screen does with it, or it is dropped
@@ -233,6 +264,9 @@
   const hashTab = () => { const h = (location.hash || '').slice(1); return TABS.includes(h) ? h : null; };
   window.addEventListener('popstate', e => {
     // Back with a sheet open only closes the sheet; the address stays on the tab that is shown
+    const keep = () => { try { history.pushState({ tab: ui.tab }, '', '#' + ui.tab); } catch (er) { /* file:// */ } };
+    if (window.COACH && COACH.rulesOpen()) { COACH.closeRules(); keep(); return; }
+    if (window.Profile && Profile.isOpen()) { Profile.closePanel(); keep(); return; }
     const box = $('.confirm-back');
     if (box) { box.remove(); try { history.pushState({ tab: ui.tab }, '', '#' + ui.tab); } catch (er) { /* file:// */ } return; }
     if ($('#sheet')) { closeSheet(); try { history.pushState({ tab: ui.tab }, '', '#' + ui.tab); } catch (er) { /* file:// */ } return; }
@@ -296,8 +330,51 @@
       '<button class="btn primary" data-start style="width:100%">Start · you + ' + (s.players - 1) + ' computer' + (s.players > 2 ? 's' : '') + '</button>' +
       '<button class="btn" data-on="open" style="width:100%">Play online with friends</button>' +
       '</div>' +
+      '<div class="row more-row"><button class="btn pf-open" id="meBtn" aria-label="My stats"></button><button class="btn" data-x="daily">Daily game</button><button class="btn" data-x="rules">Rules</button></div>' +
       (store.last ? '<button class="btn ghost" data-go="study">Review your last game</button>' : '') +
       '</div>');
+    paintMe();
+    offerTutorial();
+  }
+  // ---------------------------------------------------------------- My stats, Daily game, rules, guided game (shared kits)
+  function paintMe() {
+    const b = $('#meBtn');
+    if (!b || !window.Profile) return;
+    const html = Profile.avatarSVG(Profile.avatar, 24) + '<span>My stats</span>';
+    if (b._h !== html) { b.innerHTML = html; b._h = html; }
+  }
+  function startDaily() {
+    if (!window.Profile) return;
+    const day = Profile.daily.date();
+    if (table && !table.online && store.game && store.game.daily === day && !store.game.state.over) { Profile.closePanel(); showTab('play', true); return; }
+    if (Profile.daily.played(day)) { Profile.openPanel({ tab: 'daily' }); return; }
+    if (table && table.online) { Profile.closePanel(); oops('Leave the online room first'); return; }
+    if (table && store.game && !store.game.state.over && store.game.moved) {
+      Profile.closePanel();
+      confirmBox('Start today’s Daily game? The game in progress counts as a loss.', 'Daily game', () => { showTab('play', true); startLocal({ daily: day }); });
+      return;
+    }
+    Profile.closePanel(); showTab('play', true);
+    startLocal({ daily: day });
+  }
+  let tour = null;
+  function offerTutorial() {
+    if (!window.COACH || !tour || tour.seen() || COACH.offered('pandemic-first') || table) return;
+    COACH.offer({ id: 'pandemic-first', title: 'New to Pandemic?', text: 'Play a guided first game with one computer teammate: share a card, find a cure, treat a city.', yes: 'Teach me', no: 'No thanks', onYes: () => startTutorial() });
+  }
+  function startTutorial() {
+    if (!window.COACH || !tour) return;
+    if (table && table.online) { oops('Leave the online room first'); return; }
+    closeSheet();
+    if (ui.tab !== 'play') showTab('play', true);
+    tour.reset();
+    startLocal({ tutorial: true });
+    tour.start();
+  }
+  function openRules(open) {
+    if (!window.COACH) return;
+    closeSheet();
+    COACH.rules(Object.assign({}, PanTutorial.RULES, open ? { open } : {}));
   }
 
   function renderOnline() {
@@ -358,15 +435,27 @@
     }
     if (ui.tab === 'play') { closeSheet(); renderPlay(); } else render();
   });
-  function startLocal() {
+  // how: { daily: 'YYYY-MM-DD' } today's shared deal, { tutorial: true } the guided first game
+  function startLocal(how) {
+    how = how || {};
+    quitGame();
     const s = store.settings;
-    const seed = (Math.random() * 4294967296) >>> 0;
-    const names = [s.name || 'You'];
-    for (let i = 1; i < s.players; i++) names.push('Computer ' + i);
-    const state = E.newGame({ players: s.players, epidemics: s.epidemics, seed, roles: [s.role], names,
-      human: names.map((_, i) => i === 0), openHands: openHandsOpt(), eventPause: s.eventPause });
+    let state;
+    if (how.tutorial) state = PanTutorial.game(s.name || 'You');
+    else {
+      const daily = how.daily ? PanProfile.DAILY : null;
+      const players = daily ? daily.players : s.players, epidemics = daily ? daily.epidemics : s.epidemics;
+      const seed = daily ? Profile.daily.seed(how.daily, 'pandemic') >>> 0 : (Math.random() * 4294967296) >>> 0;
+      const names = [s.name || 'You'];
+      for (let i = 1; i < players; i++) names.push('Computer ' + i);
+      state = E.newGame({ players, epidemics, seed, roles: daily ? [-1] : [s.role], names,
+        human: names.map((_, i) => i === 0), openHands: openHandsOpt(), eventPause: s.eventPause });
+    }
     ME = 0;
-    store.game = { state, me: 0, checks: [] };
+    store.game = { state, me: 0, checks: [], id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6) };
+    if (how.daily) store.game.daily = how.daily;
+    if (how.tutorial) store.game.tutorial = true;
+    ui.replay = null;
     table = new LocalTable(state);
     resetSel(); lastSeen = null; ui.check = null; showEnd.done = null;
     clearTableFx();
@@ -430,6 +519,11 @@
       $('#game').insertBefore(mapBox, $('#g-info'));
       setTimeout(() => { mapApi.reset(true); mapApi.fit(true); }, 0); // a new game screen always starts in auto
     }
+    if (ui.replay && store.game && store.game.frames && !table.online) {
+      renderPlayers(v); renderHand(v, []); put($('#g-risk'), '');
+      renderSide(v, oddsFor(v)); renderReplay(v);
+      return;
+    }
     const toAct = table.toAct();
     const odds = oddsFor(v);
     const fresh = lastSeen && lastSeen.turn === v.turn ? false : true;
@@ -468,6 +562,7 @@
     if (v.phase === 'forecast' && v.pend && v.pend.seat === ME && !$('#sheet')) forecastSheet(v);
     scheduleBots();
     if (myTurn && v.phase === 'actions' && v.cur === ME) turnCheckStart(v);
+    if (window.COACH && store.game && store.game.tutorial) COACH.update();
   }
 
   // a prompt opened for a decision the game no longer needs must not linger: the Forecast window once its
@@ -592,12 +687,48 @@
     rows.sort((a, b) => (odds.out[b] - odds.out[a]) || (odds.draw[b] - odds.draw[a]));
     const epi = 1 - odds.epidemic[0];
     const epiChip = O.drawsAhead(v) ? '<span class="rchip" data-q="Chance the next 2 player cards include an Epidemic. Exact: each pile of the player deck holds exactly one." style="border-color:' + heat(epi, 0.6, 0) + '">Epidemic <b class="pct" style="color:' + heat(epi, 0.6, 0) + '">' + pct(epi) + '</b></span>' : '';
-    put($('#g-risk'), epiChip + rows.slice(0, 8).map(c => {
+    const box = $('#g-risk');
+    put(box, epiChip + rows.slice(0, 10).map(c => {
       const col = CITIES[c].color, own = v.cubes[c * 4 + col];
       return '<span class="rchip" data-city="' + c + '"><span class="dot" style="background:' + HEX[col] + '"></span>' + esc(cname(c)) +
         (own ? ' ' + own : '') + ' <b class="pct" style="color:' + (odds.out[c] > 0.004 ? heat(odds.out[c], 0.4, 0) : heat(odds.draw[c] * (1 + own), 1, 0)) + '">' +
         (odds.out[c] > 0.004 ? 'boom ' + pct(odds.out[c]) : pct(odds.draw[c])) + '</b></span>';
-    }).join(''));
+    }).join('') + (rows.length ? '<button class="rchip more" data-g="risks" aria-label="All infection odds">All ' + rows.length + '</button>' : ''));
+    fitRisk(box);
+  }
+  // the strip shows only whole chips: the ones that don't fit are hidden, and "All N" opens the full list
+  function fitRisk(box) {
+    const W = box.clientWidth;
+    if (!W) return;
+    const chips = Array.from(box.children), more = box.querySelector('.more');
+    chips.forEach(c => { c.style.display = ''; });
+    if (box.scrollWidth <= W + 1) { if (more) more.style.display = 'none'; return; }
+    const gap = parseFloat(getComputedStyle(box).columnGap) || 6;
+    const room = W - (more ? more.offsetWidth + gap : 0);
+    // most dangerous first: once one chip doesn't fit, the rest go too (a smaller, safer city must not jump the queue)
+    let x = 0, full = false;
+    chips.forEach(c => {
+      if (c === more) return;
+      const w = c.offsetWidth;
+      if (full || x + w > room) { c.style.display = 'none'; full = true; } else x += w + gap;
+    });
+    if (box.scrollWidth > W + 1 && more) more.style.display = 'none';
+  }
+  function riskSheet(v) {
+    const odds = oddsFor(v);
+    const rows = [];
+    for (let c = 0; c < 48; c++) if (odds.draw[c] + odds.epi[c] > 0.004) rows.push(c);
+    rows.sort((a, b) => (odds.out[b] - odds.out[a]) || (odds.draw[b] - odds.draw[a]));
+    const epi = 1 - odds.epidemic[0];
+    sheet('Next infection', (O.drawsAhead(v) ? '<div class="small">Epidemic in the next 2 cards: <b style="color:' + heat(epi, 0.6, 0) + '">' + pct(epi) + '</b></div>' : '') +
+      '<table class="odds"><tr><th>City</th><th>Cubes</th><th>Next</th><th>Outbreak</th></tr>' + rows.map(c => {
+        const col = CITIES[c].color, own = v.cubes[c * 4 + col];
+        return '<tr data-rc="' + c + '" style="cursor:pointer"><td>' + sw(col) + ' ' + esc(cname(c)) + '</td><td>' + (own ? cubePips(own, col) : '') + '</td><td style="color:' + heat(odds.draw[c] * (1 + own), 1, 0) + '">' + pct(odds.draw[c]) +
+          '</td><td style="color:' + heat(odds.out[c], 0.4, 0) + '">' + (odds.out[c] > 0.004 ? pct(odds.out[c]) : '–') + '</td></tr>';
+      }).join('') + '</table><p class="muted small" style="margin:0">Exact chance each city is infected at the end of this turn. Tap a city to find it on the board.</p>', e => {
+      const r = e.target.closest('[data-rc]');
+      if (r) { closeSheet(); ui.sel = +r.dataset.rc; renderGame(); }
+    }, { keep: true });
   }
 
   // teammates sit at the far side of the table: role card, their held cards (face up when open, backs when hidden)
@@ -684,7 +815,7 @@
 
   function renderActs(v, toAct) {
     const box = $('#g-acts');
-    if (v.over) { put(box, '<button class="btn primary" data-g="new">New game</button><button class="btn" data-go="study">Review</button>'); return; }
+    if (v.over) { put(box, '<button class="btn primary" data-g="new">New game</button>' + (canReplay() ? '<button class="btn" data-g="replay">Replay</button>' : '') + '<button class="btn" data-go="study">Review</button>'); return; }
     if (!(v.phase === 'actions' && v.cur === ME && toAct.includes(ME)) || ui.mode) {
       const nt = table.online ? '' : '<button class="btn ghost" data-g="speed">Speed: ' + store.settings.speed + '</button>';
       put(box, '<span class="muted small" style="align-self:center;padding:0 4px">' + (toAct.includes(ME) ? 'Your decision' : 'Teammates are playing') + '</span><span class="grow"></span>' + nt);
@@ -702,6 +833,7 @@
     if (builds.length) h += btn('data-g="build"', 'Build', '');
     if (L.some(a => a.t === 'give' || a.t === 'take')) h += btn('data-g="share"', 'Share', '');
     if (L.some(a => a.t === 'cptake')) h += btn('data-g="cptake"', 'Keep event', '');
+    if (!table.online && store.game && store.game.undo && store.game.undo.length) h += btn('data-g="undo" aria-label="Undo your last action"', 'Undo', 'ghost');
     if (store.settings.hints) h += btn('data-g="hint"', 'Hint', 'ghost');
     h += btn('data-g="end"', 'End turn', 'ghost');
     void here;
@@ -811,19 +943,20 @@
   function showEnd(v) {
     if (showEnd.done === v.turn + ':' + v.over.why) return;
     showEnd.done = v.turn + ':' + v.over.why;
-    if (!table.online) saveLast(v, (store.game && store.game.checks) || []);
+    if (!table.online) { saveLast(v, (store.game && store.game.checks) || []); recordGame(v, false); }
     const b = document.createElement('div');
     b.className = 'banner ' + (v.over.win ? 'win' : 'lose');
     const why = v.over.win ? 'All four cures in ' + v.turn + ' turns.' : ({ outbreaks: 'Eight outbreaks.', cubes: 'A disease ran out of cubes.', cards: 'The player deck ran out.' }[v.over.why] || '');
     b.innerHTML = '<span class="pc tbl-card endcard ' + (v.over.win ? 'win' : 'lose') + '" role="status"><span class="pc-nm">' + (v.over.win ? 'Cured!' : 'Game over') + '</span>' +
       (END_ICON[v.over.why] || '') + '<span class="ec-why">' + esc(why) + '</span>' +
       '<span class="pc-pp">' + esc('Turn ' + v.turn + ' · ' + v.outbreaks + ' outbreak' + (v.outbreaks === 1 ? '' : 's')) + '</span></span>' +
-      '<div class="row"><button class="btn primary" data-end="new">New game</button><button class="btn" data-end="study">Review</button></div>';
+      '<div class="row"><button class="btn primary" data-end="new">New game</button>' + (canReplay() ? '<button class="btn" data-end="replay">Replay</button>' : '') + '<button class="btn" data-end="study">Review</button></div>';
     // its buttons work here (it sits outside the Play view); a tap anywhere else puts it away
     b.addEventListener('click', e => {
       const k = e.target.closest('[data-end]');
       b.remove();
       if (k && k.dataset.end === 'new') newFromEnd();
+      else if (k && k.dataset.end === 'replay') startReplay();
       else if (k) showTab('study', true);
     });
     document.body.appendChild(b);
@@ -838,7 +971,98 @@
     clearTimeout(flipTimer);
     document.querySelectorAll('.banner, .flipstrip').forEach(b => b.remove());
   }
-  function dropGame() { clearTableFx(); showEnd.done = null; store.game = null; table = null; save(); resetSel(); renderPlay(); }
+  function dropGame() { quitGame(); clearTableFx(); showEnd.done = null; ui.replay = null; store.game = null; table = null; save(); resetSel(); renderPlay(); }
+  // My stats (shared _profile kit): each local game counts once, by its id; Hint, Undo or the guided game = "with help"
+  function recordGame(v, quit) {
+    const g = store.game;
+    if (!g || g.recorded || (table && table.online) || !window.Profile) return;
+    g.recorded = true; save();
+    try {
+      const r = PanProfile.result({ won: !quit && !!(v.over && v.over.win), players: v.n, epidemics: v.epidemics, turns: v.turn, outbreaks: v.outbreaks,
+        erad: v.erad.reduce((a, b) => a + b, 0), oddsOff: !store.settings.showOdds, helped: !!(g.helped || g.tutorial), daily: !!g.daily, quit });
+      Profile.recordResult(g.daily ? Object.assign(r, { date: g.daily }) : r);
+    } catch (e) { /* stats never break the game */ }
+  }
+  // a local game left before its end counts as a loss, once you have made a move in it
+  function quitGame() {
+    const g = store.game;
+    if (!g || !g.state || g.state.over || !g.moved || g.recorded || (table && table.online)) return;
+    try { recordGame(E.view(g.state, g.me || 0), true); } catch (e) { /* ignore */ }
+  }
+  // ---------------------------------------------------------------- end-of-game replay (local games): the board after every move
+  const canReplay = () => !!(table && !table.online && store.game && store.game.frames && store.game.frames.length > 1);
+  function startReplay() {
+    const g = store.game;
+    if (!g || !g.frames || g.frames.length < 2 || !table || table.online) { oops('No replay for this game'); return; }
+    document.querySelectorAll('.banner').forEach(b => b.remove());
+    clearTimeout(flipTimer); document.querySelectorAll('.flipstrip').forEach(b => b.remove());
+    ui.replay = { i: 0, play: true, timer: null };
+    resetSel();
+    renderPlay();
+    replayTick();
+  }
+  function replayTick() {
+    const r = ui.replay;
+    if (!r) return;
+    clearTimeout(r.timer);
+    if (!r.play) return;
+    r.timer = setTimeout(() => {
+      if (!ui.replay || ui.tab !== 'play') return;
+      const n = store.game.frames.length;
+      if (r.i >= n - 1) { r.play = false; renderPlay(); return; }
+      r.i++; renderPlay(); replayTick();
+    }, { slow: 1100, normal: 650, fast: 300 }[store.settings.speed] || 650);
+  }
+  function replayBtn(k) {
+    const r = ui.replay;
+    if (!r) return;
+    const n = store.game.frames.length;
+    if (k === 'rv-exit') { clearTimeout(r.timer); ui.replay = null; lastSeen = null; fxQuiet = true; renderPlay(); return; }
+    if (k === 'rv-play') { if (r.i >= n - 1) r.i = 0; r.play = !r.play; }
+    if (k === 'rv-back') { r.play = false; r.i = Math.max(0, r.i - 1); }
+    if (k === 'rv-next') { r.play = false; r.i = Math.min(n - 1, r.i + 1); }
+    if (k === 'rv-turn') { // skip to the start of the next turn
+      r.play = false;
+      const t = store.game.frames[r.i].t;
+      let j = r.i;
+      while (j < n - 1 && store.game.frames[j].t === t) j++;
+      r.i = j;
+    }
+    renderPlay(); replayTick();
+  }
+  function renderReplay(v) {
+    const fr = store.game.frames, r = ui.replay, f = fr[Math.min(r.i, fr.length - 1)];
+    const cu = f.cu.split('').map(Number);
+    const rv = Object.assign({}, v, { cubes: f.c.split('').map(Number), pawns: f.p, stations: f.st, cured: cu.slice(0, 4), erad: cu.slice(4, 8),
+      outbreaks: f.o, rate: f.r, cur: f.cur, pdeckCount: f.pd, ideckCount: f.ic, idisc: f.id >= 0 ? [f.id] : [], pdisc: f.pdc >= 0 ? [f.pdc] : [], over: null });
+    mapApi.update(rv, { sel: ui.sel, reach: null, risk: null, boom: [], cubeAt: null, fresh: true });
+    renderStatus(rv, oddsFor(v));
+    const box = $('#g-info');
+    box.className = 'info mine';
+    const msgs = f.m && f.m.length ? f.m : [r.i ? '' : 'The board after setup.'];
+    put(box, '<div class="p1">Replay · turn ' + f.t + ' · ' + esc(v.names[f.cur] || '') + '<span class="muted small" style="font-weight:500">' + (r.i + 1) + ' / ' + fr.length + '</span></div><div class="p2"><span>' + esc(msgs.filter(Boolean).slice(-2).join(' · ')) + '</span></div>');
+    const side = $('#g-side');
+    if (getComputedStyle(side).display !== 'none' && side.firstChild) { const i2 = $('#g-info2'); i2.className = box.className; put(i2, box._h); }
+    const at = r.i >= fr.length - 1;
+    put($('#g-acts'), '<button class="btn ghost" data-g="rv-back" aria-label="One move back"' + (r.i ? '' : ' disabled') + '>◀</button>' +
+      '<button class="btn primary" data-g="rv-play">' + (r.play ? 'Pause' : at ? 'Again' : 'Play') + '</button>' +
+      '<button class="btn ghost" data-g="rv-next" aria-label="One move on"' + (at ? ' disabled' : '') + '>▶</button>' +
+      '<button class="btn ghost" data-g="rv-turn"' + (at ? ' disabled' : '') + '>Next turn</button>' +
+      '<button class="btn" data-g="rv-exit">Done</button>');
+  }
+  function undo() {
+    const g = store.game;
+    if (!g || !g.undo || !g.undo.length || (table && table.online) || g.daily) return;
+    const u = g.undo.pop();
+    g.state = u.state; table.state = u.state;
+    if (g.frames) g.frames.length = Math.min(g.frames.length, u.frames || g.frames.length);
+    g.helped = true; save();
+    resetSel(); ui.check = null; lastSeen = null; fxQuiet = true;
+    FX.play('cardSlide');
+    if (window.COACH) COACH.emit('undo');
+    toast('Took back your last action — this game is unrated now');
+    renderPlay();
+  }
   function saveLast(v, checks) {
     const outs = {};
     v.log.forEach(e => { const m = /^Outbreak in (.+)!$/.exec(e.m); if (m) outs[m[1]] = (outs[m[1]] || 0) + 1; });
@@ -1024,6 +1248,9 @@
       save(); renderPlay(); return;
     }
     if (t.closest('[data-start]')) { startLocal(); return; }
+    if (t.closest('#meBtn')) { Profile.openPanel(); return; }
+    const xb = t.closest('[data-x]');
+    if (xb && xb.closest('.more-row')) { if (xb.dataset.x === 'daily') startDaily(); else if (xb.dataset.x === 'rules') openRules(); return; }
     const on = t.closest('[data-on]');
     if (on) { onlineBtn(on.dataset.on); return; }
     const seatB = t.closest('[data-seat]');
@@ -1052,6 +1279,10 @@
     if (!g) return;
     const k = g.dataset.g;
     if (k === 'new') { newFromEnd(); return; }
+    if (k === 'risks') { riskSheet(v); return; }
+    if (k === 'undo') { undo(); return; }
+    if (k === 'replay') { startReplay(); return; }
+    if (k.startsWith('rv-')) { replayBtn(k); return; }
     if (k === 'go') act({ t: 'go' });
     else if (k === 'pass') act({ t: 'pass' });
     else if (k === 'rp') act({ t: 'event', card: EV.resilient, city: +g.dataset.c });
@@ -1073,6 +1304,7 @@
     } else if (k === 'hint') {
       const st = table.online ? planState(v) : table.state;
       const pl = B.plan(st, {});
+      if (!table.online && store.game && !store.game.helped) { store.game.helped = true; save(); }
       ui.hint = { text: pl.seq.map(x => actText(x, v)).join(' → '), first: pl.seq[0] };
       const f = pl.seq[0];
       if (f && f.to !== undefined) ui.sel = f.to;
@@ -1114,13 +1346,17 @@
   function menuSheet(v) {
     const online = table.online;
     sheet('Game', '<div class="small muted">' + LEVEL_NOTE[v.epidemics] + ' · ' + v.n + ' players · turn ' + v.turn + (v.open ? ' · open hands' : '') + '</div>' +
+      (store.game && store.game.daily && !online ? '<div class="small muted">Daily game · ' + esc(store.game.daily) + '</div>' : '') +
       (online ? '<button class="btn" data-m="leave">Leave the room</button>' : '<button class="btn" data-m="new">New game</button>') +
+      '<button class="btn" data-m="rules">Rules</button>' + (window.Profile ? '<button class="btn" data-m="stats">My stats</button>' : '') +
       (online && net.snap && net.snap.code ? '<p class="small muted" style="margin:0">Room code <b>' + esc(net.snap.code) + '</b></p>' : ''), e => {
       const b = e.target.closest('[data-m]');
       if (!b) return;
       closeSheet();
+      if (b.dataset.m === 'rules') openRules();
+      if (b.dataset.m === 'stats') Profile.openPanel();
       if (b.dataset.m === 'leave') confirmBox('Leave this game? A computer takes your seat.', 'Leave', leaveOnline);
-      if (b.dataset.m === 'new') confirmBox('Start a new game? This one ends.', 'New game', dropGame);
+      if (b.dataset.m === 'new') confirmBox(!v.over && store.game && store.game.moved && !store.game.tutorial ? 'Start a new game? This one ends and counts as a loss.' : 'Start a new game? This one ends.', 'New game', dropGame);
     }, { keep: true });
   }
 
@@ -1430,6 +1666,9 @@
       '<div class="setrow"><div class="grow"><b>Pause for my events</b><span>Stop before each infection if you hold an event.</span></div>' + swc('eventPause', s.eventPause) + '</div>' +
       '<div class="setrow"><div class="grow"><b>Hands</b><span>Rulebook: face up only in Introductory games.</span></div><select id="s-open"><option value="auto"' + (s.openHands === 'auto' ? ' selected' : '') + '>Rulebook</option><option value="open"' + (s.openHands === 'open' ? ' selected' : '') + '>Always open</option><option value="hidden"' + (s.openHands === 'hidden' ? ' selected' : '') + '>Always hidden</option></select></div>' +
       '<div class="setrow"><div class="grow"><b>Computer speed</b></div><div class="seg" data-sset="speed" style="min-width:200px">' + ['slow', 'normal', 'fast'].map(k => '<button aria-pressed="' + (s.speed === k) + '" data-v="' + k + '" style="min-height:36px">' + k[0].toUpperCase() + k.slice(1) + '</button>').join('') + '</div></div></div>' +
+      '<div class="panel"><div class="setrow"><div class="grow"><b>Rules</b><span>The whole game on one page.</span></div><button class="btn small" data-sx="rules">Rules</button></div>' +
+      '<div class="setrow"><div class="grow"><b>Guided game</b><span>Play the first game again with tips.</span></div><button class="btn small" data-sx="tour">Start</button></div>' +
+      '<div class="setrow"><div class="grow"><b>My stats</b><span>Wins, rating, achievements and the Daily game.</span></div><button class="btn small" data-sx="stats">Open</button></div></div>' +
       '<div class="panel"><span class="label">Sound &amp; effects</span><div id="s-fx"></div></div>' +
       '<div class="panel"><div class="setrow"><div class="grow"><b>Start over</b><span>Clears the saved game and the table tracker.</span></div><button class="btn small" data-reset>Clear</button></div></div>' +
       '<p class="ver">Pandemic Lab · rules of the 2013 second edition · our own art · <a href="../">all games</a></p></div>';
@@ -1444,14 +1683,53 @@
   vSet.addEventListener('click', e => {
     const b = e.target.closest('[data-sset] [data-v]');
     if (b) { store.settings[b.parentElement.dataset.sset] = b.dataset.v; save(); renderSettings(); return; }
-    if (e.target.closest('[data-reset]')) confirmBox('Clear the saved game and the tracker?', 'Clear', () => { store.game = null; store.table = null; table = table && table.online ? table : null; save(); toast('Cleared'); });
+    const sx = e.target.closest('[data-sx]');
+    if (sx) {
+      const k = sx.dataset.sx;
+      if (k === 'rules') openRules();
+      else if (k === 'stats') Profile.openPanel();
+      else if (k === 'tour') {
+        if (table && !table.online && store.game && !store.game.state.over && store.game.moved && !store.game.tutorial) confirmBox('Start the guided game? The game in progress counts as a loss.', 'Start', startTutorial);
+        else startTutorial();
+      }
+      return;
+    }
+    if (e.target.closest('[data-reset]')) confirmBox('Clear the saved game and the tracker?', 'Clear', () => { if (!(table && table.online)) quitGame(); store.game = null; store.table = null; table = table && table.online ? table : null; ui.replay = null; save(); toast('Cleared'); });
   });
 
   // ------------------------------------------------------------------ start
+  // My stats, achievements and the Daily game (shared _profile kit; everything stays on this device)
+  try {
+    Profile.init({
+      game: 'pandemic', levels: PanProfile.LEVELS, achievements: PanProfile.achievements(),
+      modes: { help: { name: 'With Hint, Undo or the guided game' }, online: { hide: true }, friends: { hide: true } },
+      daily: { title: 'Daily game', onPlay: () => startDaily() },
+      name: store.settings.name || undefined,
+      onChange: what => { if (what === 'me' || what === 'import' || what === 'result' || what === 'reset') paintMe(); },
+    });
+  } catch (e) { console.warn('profile', e); }
+  // the guided first game: steps follow the game's own state and step aside on other tabs and under sheets
+  try {
+    const tutV = () => (table && !table.online && store.game && store.game.tutorial && !ui.replay ? table.view() : null);
+    tour = COACH.tour({
+      id: 'pandemic-first',
+      steps: PanTutorial.steps({ v: tutV, wide: () => window.matchMedia('(min-width: 900px)').matches }),
+      pauseIf: () => ui.tab !== 'play' || !tutV() || !!$('#sheet') || !!$('.confirm-back') || !!$('.banner') || (window.Profile && Profile.isOpen()),
+    });
+  } catch (e) { console.warn('coach', e); }
+  // home-screen install: reload for a new build only when nothing would be lost
+  if (window.PWA) window.PWA.safeToReload = () => {
+    const ae = document.activeElement;
+    if ((table && table.online) || ui.online || $('#sheet') || $('.confirm-back') || (window.COACH && COACH.rulesOpen()) || (window.Profile && Profile.isOpen())) return false;
+    if (ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return false;
+    if (ui.replay) return false;
+    return !table || ui.tab !== 'play' || !!(store.game && store.game.state && store.game.state.over && !$('.banner'));
+  };
   const first = (location.hash || '').slice(1);
   if (['play', 'table', 'study', 'settings'].includes(first)) ui.tab = first;
   try { history.replaceState({ tab: ui.tab }, '', '#' + ui.tab); } catch (e) { /* file:// */ }
   showTab(ui.tab, false);
+  if (tour && store.game && store.game.tutorial && !store.game.state.over) tour.resume();
   if (store.online) { loadOnline().then(r => r.resume()).then(ok => { if (!ok) { store.online = false; save(); } }).catch(() => {}); }
-  window.addEventListener('resize', () => { if (ui.tab === 'table') renderTable(); });
+  window.addEventListener('resize', () => { if (ui.tab === 'table') renderTable(); const r = $('#g-risk'); if (ui.tab === 'play' && r) fitRisk(r); });
 })();

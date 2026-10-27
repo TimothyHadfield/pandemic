@@ -42,7 +42,9 @@ if (process.argv[2] === '--child') {
   for (const epi of [4, 5, 6]) for (const players of [2, 3, 4]) cells.push({ epi, players });
   const want = onlyArg ? onlyArg.slice(7).split(',') : null;
   const todo = want ? cells.filter(c => want.includes(c.epi + ':' + c.players)) : cells;
-  const cores = Math.max(1, require('os').cpus().length - 1);
+  const procsArg = process.argv.find(a => a.startsWith('--procs='));
+  // 2 processes by default (the laptop ran out of memory with one per core); --procs=N or PAN_PROCS=N for more
+  const cores = Math.max(1, +(procsArg ? procsArg.slice(8) : process.env.PAN_PROCS || 2));
   const jobs = [];
   const chunk = Math.max(1, Math.ceil(games / Math.max(1, Math.floor(cores * 2 / todo.length))));
   todo.forEach((c, ci) => { for (let f = 0; f < games; f += chunk) jobs.push({ ci, epi: c.epi, players: c.players, from: f, to: Math.min(games, f + chunk), width }); });

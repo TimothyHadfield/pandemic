@@ -8,7 +8,14 @@
 <meta name="theme-color" content="#0f1117">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Pandemic Lab">
 <link rel="stylesheet" href="css/table.css?v=2">
+<link rel="stylesheet" href="css/coach.css?v=1">
+<link rel="stylesheet" href="css/profile.css?v=1">
 <style>
   :root {
     --bg: #0f1117; --bg-soft: #161923; --card: #1a1e2b; --card-hover: #212636; --line: #2a3042;
@@ -206,11 +213,10 @@
   .info .p2 .btn { flex: none; }
   .info.wrap { height: auto; min-height: 62px; padding: 6px 8px; }
   .info.wrap .p2 { flex-wrap: wrap; white-space: normal; overflow: visible; row-gap: 4px; }
-  .risk { grid-area: risk; display: flex; align-items: center; gap: 6px; height: 40px; overflow-x: auto; scrollbar-width: none; white-space: nowrap; }
-  /* swipeable strip fades at the right edge so a cut-off chip reads as "more this way" */
-  .risk { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 22px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 22px), transparent); }
-  .risk::-webkit-scrollbar { display: none; }
-  .rchip { display: inline-flex; align-items: center; gap: 4px; background: var(--glass); border: 1px solid var(--glass-line); border-radius: 7px; padding: 0 9px; height: 40px; font-size: 13px; cursor: pointer; flex: none; }
+  /* only whole chips show (js fitRisk hides the rest); "All N" at the end opens the full list */
+  .risk { grid-area: risk; display: flex; align-items: center; gap: 6px; height: 40px; overflow: hidden; white-space: nowrap; }
+  .rchip { display: inline-flex; align-items: center; gap: 4px; background: var(--glass); border: 1px solid var(--glass-line); border-radius: 7px; padding: 0 9px; height: 40px; font-size: 13px; cursor: pointer; flex: none; color: inherit; font-family: inherit; }
+  .rchip.more { margin-left: auto; font-weight: 700; color: var(--accent); }
   .rchip .dot { width: 8px; height: 8px; border-radius: 50%; }
   /* teammates' seats at the far side: role card + held cards */
   .players { grid-area: players; display: flex; gap: 6px; min-width: 0; height: 48px; }
@@ -446,7 +452,10 @@
   .endcard .ec-why { font-size: max(12px, calc(var(--card-w) * .072)); font-weight: 650; line-height: 1.25; padding: 0 12%; }
   .endcard .pc-pp { font-size: max(11px, calc(var(--card-w) * .06)); white-space: normal; padding: 5% 8% 12%; }
   .banner .row { gap: 10px; }
-  .banner .row .btn { min-width: 118px; box-shadow: 0 4px 12px rgba(0,0,0,.45); }
+  .more-row .btn { flex: 1 1 0; min-width: 0; padding: 0 8px; }
+  .more-row .pf-open svg { flex: none; }
+  .banner .row { flex-wrap: wrap; justify-content: center; }
+  .banner .row .btn { min-width: 96px; box-shadow: 0 4px 12px rgba(0,0,0,.45); }
   @keyframes pop { from { transform: translate(-50%, -50%) scale(.8); opacity: 0; } to { transform: translate(-50%, -50%); opacity: 1; } }
   .flipstrip { position: fixed; left: 50%; top: 64px; transform: translateX(-50%); z-index: 55; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; width: max-content; max-width: calc(100vw - 24px); pointer-events: none; }
   /* drawn cards fly off their deck and turn face up, like flipping them over on the table */
@@ -477,6 +486,8 @@
 </div>
 
 <script src="js/fx.js?v=3"></script>
+<script src="js/coach.js?v=1"></script>
+<script src="js/profile.js?v=1"></script>
 <script src="js/table.js?v=2"></script>
 <script src="js/data.js?v=4"></script>
 <script src="js/map-data.js?v=1"></script>
@@ -487,6 +498,9 @@
 <script src="js/strength-data.js?v=3"></script>
 <script src="js/sfx.js?v=1"></script>
 <script src="js/art.js?v=10"></script>
-<script src="js/app.js?v=8"></script>
+<script src="js/pwa.js?v=9" data-version="9"></script>
+<script src="js/pan-profile.js?v=1"></script>
+<script src="js/tutorial.js?v=1"></script>
+<script src="js/app.js?v=9"></script>
 </body>
 </html>
