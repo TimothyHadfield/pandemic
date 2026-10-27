@@ -110,7 +110,7 @@
   const net = { room: null, snap: null, connecting: false, savedLast: false };
   function loadOnline() {
     if (net.room) return Promise.resolve(net.room);
-    return import(new URL('js/online.js?v=1', location.href).href).then(mod => {
+    return import(new URL('js/online.js?v=a3d0418b', location.href).href).then(mod => {
       if (net.room) return net.room;
       net.room = mod.createOnline({ game: G.game, gameId: 'pandemic', botDelayMs: 900 });
       net.room.on('change', onNet);

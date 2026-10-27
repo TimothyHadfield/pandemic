@@ -5,9 +5,10 @@
     "try { localStorage.setItem('coach-offer:pandemic-first', '1'); document.querySelectorAll('.coach-offer').forEach(x => x.remove()); } catch (e) {}",
     "document.querySelector('[data-start]') && document.querySelector('[data-start]').click()",
     "(() => { const b = document.querySelector('#g-acts [data-g=\"end\"]'); if (b) b.click(); })()",
-    "(() => { const b = document.querySelector('.confirm-back [data-c=\"yes\"]'); if (b) b.click(); })()"
+    "(() => { const b = document.querySelector('.confirm-back [data-c=\"yes\"]'); if (b) b.click(); })()",
+    "new Promise(done => { const t0 = Date.now(); (function go() { const G = JSON.parse(localStorage.getItem('pandemic-lab-v1') || '{}').game, g = G && G.state; if (g && (g.turn > 1 || g.cur !== G.me)) return done(); const b = document.querySelector('#g-info [data-g=\"go\"], #g-info [data-g=\"pass\"]'); if (b) b.click(); if (Date.now() - t0 < 8000) setTimeout(go, 400); else done(); })(); })"
   ],
   "played": "(() => { const g = JSON.parse(localStorage.getItem('pandemic-lab-v1') || '{}').game; return !!g && !!g.state && (g.state.turn > 1 || g.state.cur !== g.me) && !g.state.over && document.querySelector('#g-acts') !== null; })()",
-  "debug": "JSON.stringify((JSON.parse(localStorage.getItem('pandemic-lab-v1') || '{}').game || {}).state && { turn: JSON.parse(localStorage.getItem('pandemic-lab-v1')).game.state.turn, cur: JSON.parse(localStorage.getItem('pandemic-lab-v1')).game.state.cur })",
+  "debug": "JSON.stringify((JSON.parse(localStorage.getItem('pandemic-lab-v1') || '{}').game || {}).state && (s => ({ turn: s.turn, cur: s.cur, phase: s.phase, left: s.left }))(JSON.parse(localStorage.getItem('pandemic-lab-v1')).game.state))",
   "safe": "document.querySelector('#tabs [data-tab=\"study\"]').click()"
 }
