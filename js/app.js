@@ -1745,6 +1745,7 @@
       game: 'pandemic', levels: PanProfile.LEVELS, achievements: PanProfile.achievements(),
       modes: { help: { name: 'With Hint, Undo or the guided game' }, online: { hide: true }, friends: { hide: true } },
       daily: { title: 'Daily game', onPlay: () => startDaily() },
+      draws: false,   // a co-op game is won or lost together: no "Drawn" column
       name: store.settings.name || undefined,
       onChange: what => { if (what === 'me' || what === 'import' || what === 'result' || what === 'reset') paintMe(); },
     });
