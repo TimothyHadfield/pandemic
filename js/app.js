@@ -927,10 +927,44 @@
       const st = $('#g-status .stat');
       // the counter sits at the top edge: the "+1" rises from just below it onto it
       if (st) { FX.pop(st); const r = st.getBoundingClientRect(); FX.floatText({ getBoundingClientRect: () => ({ left: r.left, top: r.top + 34, width: r.width, height: r.height }) }, '+1', 'var(--bad)'); }
-    } else if (x.anim === 'epidemic') { FX.flash(mapBox, '#e5484d'); FX.shake(mapBox); }
+      const ce = cityEl(x.city);
+      if (ce) ring(ce, HEX[D.CITIES[x.city].color]);
+    } else if (x.anim === 'epidemic') { FX.flash(mapBox, '#e5484d'); FX.shake(mapBox); moment('epi', 'Epidemic', cname(x.city) + ' gets 3 cubes · infection rate up', '#3f9a5c'); }
+    else if (x.anim === 'cure') moment('cure' + (x.col === 1 || x.col === 2 ? ' lite' : ''), COLOR_NAMES[x.col] + ' cured', 'The team found a cure', fxCol(x.col));
     else if (x.anim === 'treat') { const el = cityEl(x.city); if (el) FX.floatText(el, '−' + x.n, fxCol(x.col)); }
     else if (x.anim === 'erad') { const vl = vialEl(x.col); if (vl) FX.pop(vl); }
     else if (x.anim === 'myturn') { const el = infoEl(); if (el) FX.flash(el, 'var(--accent-warm)'); }
+  }
+  // the big moments: a plate that lands on the middle of the board (Epidemic, a cure), and a shock ring on an outbreak.
+  // Motion only (TABLE.animOn: the Animations setting and reduced motion); never blocks a tap.
+  function moment(kind, title, sub, col) {
+    if (!TABLE.animOn() || !mapBox) return;
+    const m = mapBox.getBoundingClientRect();
+    if (m.width < 40) return;
+    const old = $('.moment');
+    if (old) old.remove();
+    const el = document.createElement('div');
+    el.className = 'moment ' + kind;
+    el.style.setProperty('--mc', col);
+    el.style.left = (m.left + m.width / 2) + 'px';
+    el.style.top = (m.top + m.height / 2) + 'px';
+    el.innerHTML = '<span class="mo-t">' + esc(title) + '</span><span class="mo-s">' + esc(sub) + '</span>';
+    el.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(el);
+    const fast = document.documentElement.classList.contains('fx-fast') ? 0.55 : 1;
+    setTimeout(() => el.remove(), Math.round(1700 * fast));
+  }
+  function ring(cityG, col) {
+    if (!TABLE.animOn()) return;
+    const r = cityG.getBoundingClientRect();
+    const el = document.createElement('div');
+    el.className = 'shock';
+    el.style.setProperty('--mc', col);
+    el.style.left = (r.left + r.width / 2) + 'px';
+    el.style.top = (r.top + r.height / 2) + 'px';
+    el.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 900);
   }
   // the end of the game, as a card laid on the table (our own face: green when the world is saved, red when lost)
   const END_ICON = {

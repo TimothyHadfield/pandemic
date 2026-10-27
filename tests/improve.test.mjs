@@ -168,24 +168,38 @@ try {
   console.log('end of game + replay (1280)');
   {
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
-    await ctx.addInitScript(() => { try { localStorage.setItem('coach-offer:pandemic-first', '1'); } catch (e) {} });
+    await ctx.addInitScript(() => {
+      try { localStorage.setItem('coach-offer:pandemic-first', '1'); } catch (e) {}
+      // count the key-moment animations (Epidemic / cure plates, outbreak rings) as they are added
+      window.__moments = { epi: 0, cure: 0, shock: 0 };
+      new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.classList) { if (n.classList.contains('moment')) window.__moments[n.classList.contains('epi') ? 'epi' : 'cure']++; if (n.classList.contains('shock')) window.__moments.shock++; } })))
+        .observe(document, { childList: true, subtree: true });
+    });
     const page = await ctx.newPage();
     const errs = [];
     page.on('pageerror', e => errs.push(e.message));
     await page.goto(url.replace('?nosw', '?nosw&autoplay') + '#play');
     await page.click('[data-start]');
     await page.waitForSelector('.banner [data-end="replay"]', { timeout: 120000 });
+    const mo = await page.evaluate(() => window.__moments);
+    const lg = await page.evaluate(k => JSON.parse(localStorage.getItem(k)).game.state.log.map(e => e.m).join('\n'), KEY);
+    check(mo.epi >= (/Epidemic/.test(lg) ? 1 : 0) && mo.shock >= (/Outbreak/.test(lg) ? 1 : 0) && mo.cure >= 0, 'big moments play: ' + JSON.stringify(mo));
     const st = await page.evaluate(() => Profile.stats());
     check(st.games === 1, 'the finished game is counted once in My stats (' + st.games + ')');
     await page.click('.banner [data-end="replay"]');
     await page.waitForTimeout(300);
     const r0 = await page.evaluate(k => ({ info: document.querySelector('#g-info2, #g-info').textContent, n: JSON.parse(localStorage.getItem(k)).game.frames.length }), KEY);
     check(/Replay · turn 1/.test(r0.info) && r0.n > 20, 'replay starts at turn 1 (' + r0.n + ' moves recorded)');
-    await page.click('#g-acts [data-g="rv-play"]');
     await page.click('#g-acts [data-g="rv-turn"]'); await page.click('#g-acts [data-g="rv-turn"]');
     await page.waitForTimeout(200);
     const r1 = await page.evaluate(() => document.querySelector('#g-info2').textContent);
     check(/Replay · turn 3/.test(r1), 'Next turn steps through the turns (' + r1.slice(0, 40) + ')');
+    const at = () => page.evaluate(() => +/(\d+) \/ \d+/.exec(document.querySelector('#g-info2 .p1 span').textContent)[1]);
+    const i0 = await at();
+    await page.click('#g-acts [data-g="rv-play"]'); await page.waitForTimeout(2000);
+    const i1 = await at();
+    await page.click('#g-acts [data-g="rv-play"]');
+    check(i1 > i0, 'Play moves the replay on by itself (' + i0 + ' → ' + i1 + ')');
     await page.click('#g-acts [data-g="rv-exit"]');
     await page.waitForTimeout(200);
     check(!!(await page.$('#g-acts [data-g="new"]')), 'Done returns to the finished game');

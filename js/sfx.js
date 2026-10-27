@@ -60,7 +60,7 @@
       snd.forEach(([s, dt]) => add({ at: k * 120 + dt, sound: s }));
       if (snd.length) k++;
       const cu = / cured (blue|yellow|black|red)!$/.exec(m);
-      if (cu && !(next.over && next.over.win)) add({ at: 0, celebrate: 'big', col: NAMES.indexOf(cu[1]) });
+      if (cu && !(next.over && next.over.win)) add({ at: 0, celebrate: 'big', anim: 'cure', col: NAMES.indexOf(cu[1]) });
       const er = /^(Blue|Yellow|Black|Red) is eradicated\.$/.exec(m);
       if (er) add({ at: hasCure ? 600 : 150, sound: 'stamp', anim: 'erad', col: NAMES.indexOf(er[1].toLowerCase()) });
     });

@@ -437,6 +437,22 @@
   html.fx-fast svg .pawn { transition-duration: .3s; }
   html.fx-fast .banner, html.fx-fast .banner > * { animation-duration: .17s; }
   .ver a { color: #59607a; white-space: nowrap; }
+  /* key moments: a plate lands on the board (Epidemic, cure), a shock ring spreads from an outbreak */
+  .moment { position: fixed; z-index: 55; pointer-events: none; translate: -50% -50%; display: flex; flex-direction: column; align-items: center; gap: 2px;
+    padding: 12px 22px 11px; border-radius: 12px; background: linear-gradient(160deg, color-mix(in srgb, var(--mc) 78%, #fff 8%), color-mix(in srgb, var(--mc) 70%, #000 30%));
+    border: 3px solid #f4efe2; box-shadow: 0 14px 40px rgba(0,0,0,.55), inset 0 0 0 1px rgba(0,0,0,.25); color: #fff; text-align: center; max-width: 86vw;
+    animation: moment 1.7s cubic-bezier(.2,.8,.3,1) both; }
+  .moment .mo-t { font-size: clamp(22px, 6vw, 34px); font-weight: 800; letter-spacing: .06em; text-transform: uppercase; text-shadow: 0 2px 0 rgba(0,0,0,.35); }
+  .moment .mo-s { font-size: 13px; font-weight: 600; opacity: .92; }
+  .moment.lite { color: #10131a; }
+  .moment.lite .mo-t { text-shadow: 0 1px 0 rgba(255,255,255,.35); }
+  @keyframes moment { 0% { opacity: 0; scale: 1.9; rotate: -8deg; } 14% { opacity: 1; scale: .94; rotate: -2deg; } 20% { scale: 1.03; } 26% { scale: 1; }
+    80% { opacity: 1; scale: 1; } 100% { opacity: 0; scale: .96; translate: -50% -60%; } }
+  .shock { position: fixed; z-index: 54; pointer-events: none; width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 50%;
+    border: 3px solid var(--mc); box-shadow: 0 0 14px var(--mc); animation: shock .9s ease-out both; }
+  @keyframes shock { from { transform: scale(.4); opacity: 1; } to { transform: scale(5.5); opacity: 0; } }
+  html.fx-fast .moment { animation-duration: .95s; }
+  html.fx-fast .shock { animation-duration: .5s; }
   /* the end of the game: a card laid on the table (the rest of the table dims), New game / Review under it */
   .banner { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
     padding: 16px 16px calc(var(--tabbar) + 16px); background: rgba(5,7,12,.5); animation: fade .2s ease-out; }
@@ -496,11 +512,11 @@
 <script src="js/bots.js?v=3"></script>
 <script src="js/online-game.js?v=3"></script>
 <script src="js/strength-data.js?v=3"></script>
-<script src="js/sfx.js?v=1"></script>
+<script src="js/sfx.js?v=2"></script>
 <script src="js/art.js?v=10"></script>
-<script src="js/pwa.js?v=9" data-version="9"></script>
+<script src="js/pwa.js?v=10" data-version="10"></script>
 <script src="js/pan-profile.js?v=1"></script>
 <script src="js/tutorial.js?v=1"></script>
-<script src="js/app.js?v=9"></script>
+<script src="js/app.js?v=10"></script>
 </body>
 </html>
