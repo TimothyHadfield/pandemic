@@ -12,7 +12,7 @@
 
   // ------------------------------------------------------------ context computed once per decision
   // weights (tuned by measuring win rates with tools/measure.js; PAN_W env overrides for tuning)
-  const W = { cured: 2200, cure: 1500, spare: 25, shareF: 0.3, shareD: 4, toStation: 70, cube: 10, soon: 4, out: 120, cardCity: 7, cardEvent: 16, station: 30, near: 6, limit: 25, grantMin: 40, width: 10, cap: 3000, look: 0, lookK: 4, lookW: 4, lookCap: 1500, oc: 300, supply: 6, tight: 300 };
+  const W = { cured: 2200, cure: 1500, spare: 25, shareF: 0.3, shareD: 4, toStation: 70, cube: 10, soon: 4, out: 120, cardCity: 7, cardEvent: 16, station: 30, near: 6, limit: 25, grantMin: 40, width: 10, cap: 3000, look: 0.5, lookK: 8, lookW: 4, lookCap: 1500, oc: 300, supply: 6, tight: 300 };
   const CUBE_W = [0, 0.6, 2.5, 8];
   if (typeof process !== 'undefined' && process.env && process.env.PAN_W) Object.assign(W, JSON.parse(process.env.PAN_W));
 

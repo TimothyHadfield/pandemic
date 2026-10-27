@@ -18,3 +18,9 @@
 - **Built:** phone board edge to edge with no sea band, landscape hand under the board, 10 px name floor with names clear of pawns/stations/panels, tap-to-magnify for crowded spots on phones (js/art.js, index.html).
 - **Verified:** audit at 5 sizes x 4 states (scratchpad `vis/pandemic/`), new `tests/visibility.test.mjs` (24 fails on old code, passes in WebKit + Chromium); engine 24/24, online 6, zoom, edge (name overlap now measured on the ink, not the line box), fx, over-prompts pass; one read-only reviewer, its name-crowding and panel findings fixed.
 - **Open:** see progress.md NOT verified (visibility line).
+
+## 2026-10-27: improve pass (builder, manager's per-game brief)
+- **Asked:** fix the cut-off risk chips; stronger computer teammates (team win rate before → after); guided first game, achievements, Undo vs the computer, end-of-game replay; shared kits `_coach`, `_profile`, `_pwa`; richer key moments; no empty bands. Hint/Undo games unrated, no Undo in the Daily, quitting = a loss.
+- **Built:** whole-chip risk strip + "All N" odds sheet; guided game + rules sheet; Undo; replay; My stats / 10 achievements / Daily; offline install; Epidemic/cure plates + outbreak shock ring; teammates look one turn ahead (`look 0.5, lookK 8` in js/bots.js), strength table rebuilt. One read-only reviewer: 7 smaller findings, all fixed.
+- **Verified:** `tests/improve.test.mjs` (WebKit; risk strip failed 6 checks on the old code, tutorial-quit check failed before its fix), engine 24/24, edge, fx, over-prompts, zoom, visibility, online 6, pwa-check 18/18; screenshots at 393, 320, 659×393, 820, 1280, 1440 (scratchpad `improve/pandemic/`).
+- **Open:** progress.md NOT verified (improve line).
