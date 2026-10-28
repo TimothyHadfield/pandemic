@@ -18,6 +18,7 @@
 - **Built:** Settings → Variants: Extra roles & events (3 roles + 3 events, own names/icons, bots + Hint use them) and Legendary (7 Epidemics); rules sheet Variants + 4 YouTube videos; 320 px setup/action-row fixes; measure.js `--extra`.
 - **Verified:** engine 24/24, extras 13/13 (12 failed on old code), extras-ui WebKit 5 sizes all pass (19 failed on old code), online 6, over-prompts, zoom, fx, edge, visibility, improve pass, pwa-check 18/18; 900+900+300 measured games (numbers in progress.md); screenshots scratchpad `pan-shots/`.
 - **Open:** see progress.md NOT verified (Wave 3 line).
+- **Sweep (same day, 07cf973):** coach 1.2.0 (offer `place:'auto'`, avoids Start: 0 px over tabs/Start at 393, 320, 659×393) + pwa 1.4.0 (data-version 17); all suites + pwa-check 18/18 green; settings 320 px no sideways scroll; select already dark.
 
 ## 2026-10-21: visibility pass (builder)
 - **Asked:** Tim: "for a lot of the games the cards or board layout is too small to easily see what's going on. ... Consider parts of the board that are dense in what's happening and if the user can reasonably see it." (full quote in progress.md).

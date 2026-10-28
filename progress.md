@@ -43,6 +43,7 @@ First version is live: play Pandemic (2nd edition) with computer teammates or fr
 - Global: never ask permission; $0; Tim decides looks, wording, names; phone-first dark look.
 
 ## Traps
+- **Kits 2026-10-28 (sweep):** game-coach 1.2.0 (offer `place:'auto', avoid:['[data-start]']`; local rules-link colour dropped, the kit sets it) + game-pwa 1.4.0 (data-version 17).
 - **Kits re-copied 2026-10-27 (kitfix):** game-coach 1.1.0 (rules tabs wrap instead of scrolling sideways: 11 tabs, 6–7 were cut off at 393/320, now 3 rows, none cut; a note beside a tall target keeps title + 2 lines + buttons) and game-pwa 1.3.0 (`data-extra` on the pwa.js tag caches files loaded later by script). Copies stay byte-identical to `../_coach` / `../_pwa`.
 - **online.js cache stamp (2026-10-27):** every import of `js/online.js` uses `?v=a3d0418b`, the `_online` content stamp. After a re-copy: put the new stamp from `node ../_online/tools/stamp.mjs` there, bump the importing file's `?v=` (and pwa.js `data-version`), then `node ../_online/tools/stamp.mjs --check .` must say OK.
 - `node --test tests/` fails on Windows: run `node --test tests/engine.test.js`, `node tests/online.test.mjs`, `node tests/over-prompts.test.mjs`, `node tests/zoom.test.mjs`, `node tests/fx.test.mjs`, `node tests/edge.test.mjs` and `node tests/visibility.test.mjs` (the last five need Playwright in `~/.claude/tools`).
