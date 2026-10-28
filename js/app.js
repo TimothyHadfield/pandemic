@@ -366,7 +366,7 @@
   let tour = null;
   function offerTutorial() {
     if (!window.COACH || !tour || tour.seen() || COACH.offered('pandemic-first') || table) return;
-    COACH.offer({ id: 'pandemic-first', title: 'New to Pandemic?', text: 'Play a guided first game with one computer teammate: share a card, find a cure, treat a city.', yes: 'Teach me', no: 'No thanks', onYes: () => startTutorial() });
+    COACH.offer({ id: 'pandemic-first', title: 'New to Pandemic?', text: 'Play a guided first game with one computer teammate: share a card, find a cure, treat a city.', yes: 'Teach me', no: 'No thanks', onYes: () => startTutorial(), place: 'auto', avoid: ['[data-start]'] });
   }
   function startTutorial() {
     if (!window.COACH || !tour) return;
