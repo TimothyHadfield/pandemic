@@ -1,5 +1,6 @@
 // Plays all-computer games and reports the team win rate per difficulty and player count.
-// usage: node tools/measure.js [games per cell] [--json] [--only=epi:players]
+// usage: node tools/measure.js [games per cell] [--json] [--only=epi:players] [--extra] (extra roles & events; same seeds)
+// (--only=7:2 etc. measures the Legendary level)
 // Runs one process per CPU core. Each game's seed is fixed, so results repeat exactly.
 'use strict';
 const path = require('path');
@@ -7,8 +8,8 @@ const D = require('../js/data.js');
 const E = require('../js/engine.js');
 const B = require('../js/bots.js');
 
-function play(players, epidemics, seed, width) {
-  let s = E.newGame({ players, epidemics, seed });
+function play(players, epidemics, seed, width, extra) {
+  let s = E.newGame({ players, epidemics, seed, extra: !!extra });
   let guard = 0;
   while (!s.over && guard++ < 5000) {
     const seat = E.toAct(s)[0];
@@ -22,7 +23,7 @@ function runJob(job) {
   const res = [];
   for (let g = job.from; g < job.to; g++) {
     const t0 = Date.now();
-    const s = play(job.players, job.epi, seedOf(job.epi, job.players, g), job.width);
+    const s = play(job.players, job.epi, seedOf(job.epi, job.players, g), job.width, job.extra);
     const ms = Date.now() - t0;
     const outs = [];
     s.log.forEach(e => { const m = /^Outbreak in (.+)!$/.exec(e.m); if (m) outs.push(D.IDX[m[1]]); });
@@ -37,9 +38,10 @@ if (process.argv[2] === '--child') {
   const games = +process.argv[2] || 40;
   const json = process.argv.includes('--json');
   const onlyArg = process.argv.find(a => a.startsWith('--only='));
+  const extra = process.argv.includes('--extra');
   const width = +((process.argv.find(a => a.startsWith('--width=')) || '').split('=')[1]) || undefined;
   const cells = [];
-  for (const epi of [4, 5, 6]) for (const players of [2, 3, 4]) cells.push({ epi, players });
+  for (const epi of (onlyArg ? [4, 5, 6, 7] : [4, 5, 6])) for (const players of [2, 3, 4]) cells.push({ epi, players });
   const want = onlyArg ? onlyArg.slice(7).split(',') : null;
   const todo = want ? cells.filter(c => want.includes(c.epi + ':' + c.players)) : cells;
   const procsArg = process.argv.find(a => a.startsWith('--procs='));
@@ -47,7 +49,7 @@ if (process.argv[2] === '--child') {
   const cores = Math.max(1, +(procsArg ? procsArg.slice(8) : process.env.PAN_PROCS || 2));
   const jobs = [];
   const chunk = Math.max(1, Math.ceil(games / Math.max(1, Math.floor(cores * 2 / todo.length))));
-  todo.forEach((c, ci) => { for (let f = 0; f < games; f += chunk) jobs.push({ ci, epi: c.epi, players: c.players, from: f, to: Math.min(games, f + chunk), width }); });
+  todo.forEach((c, ci) => { for (let f = 0; f < games; f += chunk) jobs.push({ ci, epi: c.epi, players: c.players, from: f, to: Math.min(games, f + chunk), width, extra }); });
   const { spawn } = require('child_process');
   const results = todo.map(() => []);
   const t0 = Date.now();

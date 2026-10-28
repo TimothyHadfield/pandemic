@@ -11,7 +11,7 @@
   const pct = x => (x >= 0.995 ? '100' : x < 0.005 && x > 0 ? '<1' : Math.round(x * 100)) + '%';
   const heat = (x, lo, hi) => 'hsl(' + Math.round(Math.max(0, Math.min(1, (x - lo) / (hi - lo))) * 130) + ',70%,62%)';
   const cname = c => CITIES[c].name;
-  const LEVEL_NOTE = { 4: 'Introductory', 5: 'Standard', 6: 'Heroic' };
+  const LEVEL_NOTE = { 4: 'Introductory', 5: 'Standard', 6: 'Heroic', 7: 'Legendary' };
 
   // ------------------------------------------------------------------ sounds, celebrations, animations (js/fx.js, js/sfx.js)
   const FX = window.FX;
@@ -29,7 +29,7 @@
 
   // ------------------------------------------------------------------ saved data
   const KEY = 'pandemic-lab-v1';
-  const DEF = { name: '', players: 2, epidemics: 5, role: -1, speed: 'normal', showOdds: true, eventPause: true, openHands: 'auto', hints: true };
+  const DEF = { name: '', players: 2, epidemics: 5, role: -1, speed: 'normal', showOdds: true, eventPause: true, openHands: 'auto', hints: true, extra: false, legendary: false };
   let store = { settings: Object.assign({}, DEF), game: null, last: null, table: null, online: false };
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) || 'null');
@@ -39,7 +39,8 @@
   (function clampSettings() {
     const s = store.settings = Object.assign({}, DEF, store.settings || {});
     if (![2, 3, 4].includes(s.players)) s.players = 2;
-    if (![4, 5, 6].includes(s.epidemics)) s.epidemics = 5;
+    s.extra = s.extra === true; s.legendary = s.legendary === true;
+    if (![4, 5, 6].concat(s.legendary ? [7] : []).includes(s.epidemics)) s.epidemics = s.epidemics === 7 ? 6 : 5;
     if (!(Number.isInteger(s.role) && s.role >= -1 && s.role < ROLES.length)) s.role = -1;
     if (!['slow', 'normal', 'fast'].includes(s.speed)) s.speed = 'normal';
     if (!['auto', 'open', 'hidden'].includes(s.openHands)) s.openHands = 'auto';
@@ -177,13 +178,15 @@
       if (k === 'create') {
         const s = store.settings;
         const seats = ['human'].concat(new Array(s.players - 1).fill('empty'));
-        r = await room.createRoom({ name, seats, options: { epidemics: s.epidemics, roles: [s.role], openHands: openHandsOpt(), eventPause: s.eventPause } });
+        r = await room.createRoom({ name, seats, options: { epidemics: s.epidemics, roles: [myRole()], openHands: openHandsOpt(), eventPause: s.eventPause, extra: s.extra } });
       } else r = await room.joinRoom(code, name);
     } catch (e) { r = { ok: false, message: 'Online play couldn’t load. Check your internet.' }; }
     net.connecting = false;
     if (r.ok) { store.online = true; save(); } else toast(r.message);
     renderPlay();
   }
+  // your chosen role (an extra role only while the option is on)
+  function myRole() { const s = store.settings; return s.role >= 0 && ROLES[s.role].extra && !s.extra ? -1 : s.role; }
   function openHandsOpt() { const o = store.settings.openHands; return o === 'open' ? true : o === 'hidden' ? false : undefined; }
 
   // ------------------------------------------------------------------ ui state
@@ -325,10 +328,11 @@
       '<div class="panel">' +
       '<div class="label">Players</div><div class="seg" data-set="players">' + [2, 3, 4].map(n => '<button aria-pressed="' + (s.players === n) + '" data-v="' + n + '">' + n + '</button>').join('') + '</div>' +
       '<div class="row"><span class="label grow">Difficulty</span>' + qBtn(lvQ) + '</div>' +
-      '<div class="seg" data-set="epidemics">' + [4, 5, 6].map(n => '<button aria-pressed="' + (s.epidemics === n) + '" data-v="' + n + '">' + LEVEL_NOTE[n] + '<small>' + n + ' Epidemics' + (rateNote(n) ? ' · ' + rateNote(n) : '') + '</small></button>').join('') + '</div>' +
+      '<div class="seg' + (s.legendary ? ' four' : '') + '" data-set="epidemics">' + [4, 5, 6].concat(s.legendary ? [7] : []).map(n => '<button aria-pressed="' + (s.epidemics === n) + '" data-v="' + n + '">' + LEVEL_NOTE[n] + '<small>' + n + ' Epidemics' + (rateNote(n) ? ' · ' + rateNote(n) : '') + '</small></button>').join('') + '</div>' +
       '<div class="row"><span class="label grow">Your role</span>' + qBtn('Teammates get random roles. Each role bends one rule; tap a role in the game to read it.') + '</div>' +
-      '<div class="rolepick" data-set="role"><button aria-pressed="' + (s.role === -1) + '" data-v="-1"><i style="background:linear-gradient(90deg,#4f8ff7,#f2c94c,#e5484d)"></i>Random</button>' +
-      ROLES.map((r, i) => '<button aria-pressed="' + (s.role === i) + '" data-v="' + i + '">' + A.roleIcon(i, 14) + shortRole(i) + '</button>').join('') + '</div>' +
+      '<div class="rolepick" data-set="role"><button aria-pressed="' + (myRole() === -1) + '" data-v="-1"><i style="background:linear-gradient(90deg,#4f8ff7,#f2c94c,#e5484d)"></i>Random</button>' +
+      ROLES.map((r, i) => (r.extra && !s.extra ? '' : '<button aria-pressed="' + (s.role === i) + '" data-v="' + i + '">' + A.roleIcon(i, 14) + shortRole(i) + '</button>')).join('') + '</div>' +
+      (s.extra || s.legendary ? '<button class="varline" data-go="settings">Variants: ' + [s.extra ? 'extra roles &amp; events' : '', s.legendary ? 'Legendary' : ''].filter(Boolean).join(' · ') + '</button>' : '') +
       '<button class="btn primary" data-start style="width:100%">Start · you + ' + (s.players - 1) + ' computer' + (s.players > 2 ? 's' : '') + '</button>' +
       '<button class="btn" data-on="open" style="width:100%">Play online with friends</button>' +
       '</div>' +
@@ -450,7 +454,7 @@
       const seed = daily ? Profile.daily.seed(how.daily, 'pandemic') >>> 0 : (Math.random() * 4294967296) >>> 0;
       const names = [s.name || 'You'];
       for (let i = 1; i < players; i++) names.push('Computer ' + i);
-      state = E.newGame({ players, epidemics, seed, roles: daily ? [-1] : [s.role], names,
+      state = E.newGame({ players, epidemics, seed, roles: daily ? [-1] : [myRole()], names, extra: !daily && s.extra,
         human: names.map((_, i) => i === 0), openHands: openHandsOpt(), eventPause: s.eventPause });
     }
     ME = 0;
@@ -587,7 +591,7 @@
       ';background:' + (v.cured[c] ? (v.erad[c] ? 'repeating-linear-gradient(45deg,' + HEX[c] + ' 0 3px,#fff 3px 5px)' : HEX[c]) : 'transparent') + (c === 2 ? ';border-color:#8a8fa3' : '') + '"></span>').join('') + '</span>';
     put($('#g-status'),
       '<span class="stat" data-q="Outbreaks so far. At 8 the team loses." style="color:' + outCol + '">' + ICON.out + '<b>' + v.outbreaks + '</b>/8</span>' +
-      '<span class="stat" data-q="Infection rate: how many infection cards are flipped at the end of each turn. It goes up with every Epidemic (2-2-2-3-3-4-4).">' + ICON.rate + '<b>' + D.RATE_TRACK[v.rate] + '</b></span>' +
+      '<span class="stat" data-q="Infection rate: how many infection cards are flipped at the end of each turn. It goes up with every Epidemic (2-2-2-3-3-4-4).">' + ICON.rate + '<b>' + E.infectRate(v) + '</b></span>' +
       '<span class="stat" data-q="Cures found (filled) and diseases wiped out (striped). Cure all four to win.">' + vials + '</span>' +
       '<span class="stat" data-q="' + esc('Player cards left: ' + v.pdeckCount + '. You lose when someone cannot draw 2. Chance of an Epidemic in the next draw: ' + pct(epi) + ' (exact, from the ' + v.piles.length + ' piles the deck was built from).') + '">' + ICON.deck + '<b>' + v.pdeckCount + '</b><span style="color:' + heat(epi, 0.6, 0) + '">' + (O.drawsAhead(v) ? '· ' + pct(epi) : '') + '</span></span>' +
       '<span class="grow"></span><button class="icon-btn" id="g-menu" aria-label="Menu">' + ICON.menu + '</button>');
@@ -613,16 +617,25 @@
     } else if (ui.mode) {
       const m = ui.mode;
       const nm = EVENTS[m.card - 48].name;
+      if (m.card === EV.remote) {
+        const k = m.picks.length;
+        p1 = nm + ': tap a city with cubes (' + (k + 1) + ' of 2)';
+        const c = ui.sel, room = col => v.cubes[c * 4 + col] - m.picks.filter(x => x[0] === c && x[1] === col).length;
+        p2 = (c >= 0 ? [0, 1, 2, 3].filter(col => room(col) > 0).map(col => '<button class="btn small primary" data-g="rc-pick" data-c="' + col + '">' + sw(col) + 'Remove ' + esc(cname(c)) + '</button>').join('') : '') +
+          (k ? '<button class="btn small" data-g="rc-done">Just 1</button>' : '') + '<button class="btn small ghost" data-g="ev-cancel">Cancel</button>';
+        cls += ' mine wrap';
+      } else {
       p1 = nm + ': ' + (m.card === EV.airlift ? 'tap the city for ' + playerLabel(v, m.who) : 'tap a city for the new station');
       p2 = (ui.sel >= 0 ? '<button class="btn small primary" data-g="ev-go">' + (m.card === EV.airlift ? 'Airlift to ' : 'Station in ') + esc(cname(ui.sel)) + '</button>' : '') +
         '<button class="btn small ghost" data-g="ev-cancel">Cancel</button>';
       cls += ' mine';
+      }
     } else if (v.phase === 'discard' && v.pend && v.pend.seat === ME) {
       p1 = 'Too many cards: discard 1 (or play an event)';
       p2 = ui.discardPick >= 0 ? '<button class="btn small warm" data-g="discard">Discard ' + esc(D.cardName(ui.discardPick)) + '</button>' : '<span>Tap a card in your hand.</span>';
       cls += ' alert';
     } else if (v.phase === 'window' && toAct.includes(ME)) {
-      const r = D.RATE_TRACK[v.rate];
+      const r = E.infectRate(v);
       p1 = v.cur === ME ? (v.quiet ? 'One Quiet Night is on' : 'Infect ' + r + ' cities next') : 'Events before ' + v.names[v.cur] + '’s infections?';
       p2 = v.cur === ME ? '<button class="btn small primary" data-g="go">' + (v.quiet ? 'Skip infections' : 'Infect ' + r + ' cities') + '</button><span>Play an event first if you want.</span>' :
         '<button class="btn small" data-g="pass">No events</button><span>Tap an event card to play it.</span>';
@@ -649,7 +662,7 @@
         if (v.roles[ME] === D.ROLE_IDX.dispatcher) { p2 = whoPicker(v) + p2; cls += ' wrap'; }
       } else p2 = '<span>' + esc(cityNote(v, c)) + '</span>';
     } else if (myAct) {
-      p1 = 'Your turn <span class="left-pips">' + [0, 1, 2, 3].map(i => '<i class="' + (i < v.left ? '' : 'off') + '"></i>').join('') + '</span><span class="muted small" style="font-weight:500">' + v.left + ' action' + (v.left === 1 ? '' : 's') + ' left</span>';
+      p1 = 'Your turn <span class="left-pips">' + Array.from({ length: Math.max(4, v.left) }, (_, i) => '<i class="' + (i < v.left ? '' : 'off') + '"></i>').join('') + '</span><span class="muted small" style="font-weight:500">' + v.left + ' action' + (v.left === 1 ? '' : 's') + ' left</span>';
       p2 = ui.hint ? '<span style="color:var(--text)">Plan: ' + esc(ui.hint.text) + '</span>' : '<span>Tap a city to move. Dashed rings: one action away.</span>';
       if (v.roles[ME] === D.ROLE_IDX.dispatcher) { p2 = whoPicker(v) + p2; cls += ' wrap'; }
       cls += ' mine';
@@ -836,6 +849,7 @@
     if (builds.length) h += btn('data-g="build"', 'Build', '');
     if (L.some(a => a.t === 'give' || a.t === 'take')) h += btn('data-g="share"', 'Share', '');
     if (L.some(a => a.t === 'cptake')) h += btn('data-g="cptake"', 'Keep event', '');
+    if (L.some(a => a.t === 'grab')) h += btn('data-g="grab"', 'Take card', '');
     if (!table.online && store.game && store.game.undo && store.game.undo.length) h += btn('data-g="undo" aria-label="Undo your last action"', 'Undo', 'ghost');
     if (store.settings.hints) h += btn('data-g="hint"', 'Hint', 'ghost');
     h += btn('data-g="end"', 'End turn', 'ghost');
@@ -1175,6 +1189,7 @@
       case 'take': return 'take ' + cname(a.card) + ' from ' + v.names[a.from];
       case 'cure': return 'cure ' + COLOR_NAMES[a.color].toLowerCase();
       case 'cptake': return 'keep ' + D.cardName(a.card);
+      case 'grab': return 'take ' + cname(a.card) + ' from ' + v.names[a.from] + ' (free)';
       case 'event': return 'play ' + D.cardName(a.card);
       default: return 'end turn';
     }
@@ -1212,6 +1227,13 @@
     const html = L.map(a => '<button class="btn" style="justify-content:flex-start" data-a=\'' + JSON.stringify(a) + '\'>' + sw(CITIES[a.card].color) +
       esc(a.t === 'give' ? 'Give ' + cname(a.card) + ' to ' + v.names[a.to] : 'Take ' + cname(a.card) + ' from ' + v.names[a.from]) + '</button>').join('');
     sheet('Share a card', html + '<p class="muted small" style="margin:0">You can share the card of the city you are both in. The Researcher can give any city card.</p>', e => {
+      const b = e.target.closest('[data-a]');
+      if (b) { closeSheet(); act(JSON.parse(b.dataset.a)); }
+    });
+  }
+  function grabSheet(v) {
+    const L = E.legalActions(planState(v)).filter(a => a.t === 'grab');
+    sheet('Take a card (free, once a turn)', L.map(a => '<button class="btn" style="justify-content:flex-start" data-a=\'' + JSON.stringify(a) + '\'>' + sw(CITIES[a.card].color) + esc('Take ' + cname(a.card) + ' from ' + v.names[a.from]) + '</button>').join(''), e => {
       const b = e.target.closest('[data-a]');
       if (b) { closeSheet(); act(JSON.parse(b.dataset.a)); }
     });
@@ -1270,6 +1292,15 @@
     if (card === EV.forecast) { confirmBox('Play Forecast? You will see the top 6 infection cards and put them back in any order.', 'Play', () => act({ t: 'event', card })).dataset.decide = '1'; return; }
     if (card === EV.resilient) { if (!v.idisc.length) { oops('The infection discard pile is empty'); return; } rpSheet(v); return; }
     if (card === EV.grant) { ui.mode = { card }; ui.sel = -1; renderPlay(); toast('Tap a city for the station'); return; }
+    if (card === EV.shift) {
+      if (v.phase !== 'actions') { oops('Play it during a turn’s actions'); return; }
+      confirmBox('Play Extra Shift? ' + (v.cur === ME ? 'You get' : v.names[v.cur] + ' gets') + ' 2 more actions this turn.', 'Play', () => act({ t: 'event', card })).dataset.decide = '1'; return;
+    }
+    if (card === EV.ban) { confirmBox('Play Travel Ban? Each Infect step flips only 1 card until your next turn starts.', 'Play', () => act({ t: 'event', card })).dataset.decide = '1'; return; }
+    if (card === EV.remote) {
+      if (!v.cubes.some(Boolean)) { oops('No cubes on the board'); return; }
+      ui.mode = { card, picks: [] }; ui.sel = -1; renderPlay(); toast('Tap a city with cubes'); return;
+    }
     if (card === EV.airlift) {
       sheet('Airlift: whose pawn?', v.pawns.map((_, p) => '<button class="btn" style="justify-content:flex-start" data-p="' + p + '">' + A.roleIcon(v.roles[p], 16) + esc(playerLabel(v, p)) + ' <span class="muted">in ' + esc(cname(v.pawns[p])) + '</span></button>').join(''), ev => {
         const b = ev.target.closest('[data-p]');
@@ -1331,6 +1362,13 @@
     else if (k === 'forecast' && v.phase === 'forecast' && v.pend && v.pend.seat === ME) forecastSheet(v);
     else if (k === 'discard' && ui.discardPick >= 0) { const c = ui.discardPick; ui.discardPick = -1; act({ t: 'discard', card: c }); }
     else if (k === 'share') shareSheet(v);
+    else if (k === 'grab') grabSheet(v);
+    else if (k === 'rc-pick' && ui.mode && ui.mode.card === EV.remote && ui.sel >= 0) {
+      const m = ui.mode;
+      m.picks.push([ui.sel, +g.dataset.c]);
+      if (m.picks.length >= 2 || v.cubes.reduce((a, b) => a + b, 0) <= m.picks.length) { ui.mode = null; act({ t: 'event', card: m.card, cubes: m.picks }); }
+      else { ui.sel = -1; renderGame(); }
+    } else if (k === 'rc-done' && ui.mode && ui.mode.card === EV.remote && ui.mode.picks.length) { const m = ui.mode; ui.mode = null; act({ t: 'event', card: m.card, cubes: m.picks }); }
     else if (k === 'cptake') {
       const L = E.legalActions(planState(v)).filter(a => a.t === 'cptake');
       sheet('Keep an event from the discard pile', L.map(a => '<button class="btn" style="justify-content:flex-start" data-a=\'' + JSON.stringify(a) + '\'>' + esc(D.cardName(a.card)) + '</button>').join(''), ev => {
@@ -1344,10 +1382,12 @@
       if (v.left > 0) confirmBox('End your turn with ' + v.left + ' action' + (v.left === 1 ? '' : 's') + ' left?', 'End turn', () => act({ t: 'end' }));
     } else if (k === 'hint') {
       const st = table.online ? planState(v) : table.state;
-      const pl = B.plan(st, {});
+      const pre = B.preMove(st, ME);
+      const pl = pre ? null : B.plan(st, {});
       if (!table.online && store.game && !store.game.helped) { store.game.helped = true; save(); }
-      ui.hint = { text: pl.seq.map(x => actText(x, v)).join(' → '), first: pl.seq[0] };
-      const f = pl.seq[0];
+      const seq = pre ? [pre] : pl.seq;
+      ui.hint = { text: seq.map(x => actText(x, v)).join(' → ') + (pre ? ', then Hint again' : ''), first: seq[0] };
+      const f = seq[0];
       if (f && f.to !== undefined) ui.sel = f.to;
       else ui.sel = -1;
       renderGame();
@@ -1386,7 +1426,7 @@
   }
   function menuSheet(v) {
     const online = table.online;
-    sheet('Game', '<div class="small muted">' + LEVEL_NOTE[v.epidemics] + ' · ' + v.n + ' players · turn ' + v.turn + (v.open ? ' · open hands' : '') + '</div>' +
+    sheet('Game', '<div class="small muted">' + LEVEL_NOTE[v.epidemics] + ' · ' + v.n + ' players · turn ' + v.turn + (v.open ? ' · open hands' : '') + (v.extra ? ' · extra roles &amp; events' : '') + '</div>' +
       (store.game && store.game.daily && !online ? '<div class="small muted">Daily game · ' + esc(store.game.daily) + '</div>' : '') +
       (online ? '<button class="btn" data-m="leave">Leave the room</button>' : '<button class="btn" data-m="new">New game</button>') +
       '<button class="btn" data-m="rules">Rules</button>' + (window.Profile ? '<button class="btn" data-m="stats">My stats</button>' : '') +
@@ -1414,7 +1454,7 @@
   }
   function tr() {
     if (trOk.has(store.table)) return store.table;
-    if (!trValid(store.table)) { store.table = newTracker(store.settings.players, store.settings.epidemics); save(); }
+    if (!trValid(store.table)) { store.table = newTracker(store.settings.players, Math.min(6, store.settings.epidemics)); save(); }
     trOk.add(store.table);
     return store.table;
   }
@@ -1707,6 +1747,9 @@
       '<div class="setrow"><div class="grow"><b>Pause for my events</b><span>Stop before each infection if you hold an event.</span></div>' + swc('eventPause', s.eventPause) + '</div>' +
       '<div class="setrow"><div class="grow"><b>Hands</b><span>Rulebook: face up only in Introductory games.</span></div><select id="s-open"><option value="auto"' + (s.openHands === 'auto' ? ' selected' : '') + '>Rulebook</option><option value="open"' + (s.openHands === 'open' ? ' selected' : '') + '>Always open</option><option value="hidden"' + (s.openHands === 'hidden' ? ' selected' : '') + '>Always hidden</option></select></div>' +
       '<div class="setrow"><div class="grow"><b>Computer speed</b></div><div class="seg" data-sset="speed" style="min-width:200px">' + ['slow', 'normal', 'fast'].map(k => '<button aria-pressed="' + (s.speed === k) + '" data-v="' + k + '" style="min-height:36px">' + k[0].toUpperCase() + k.slice(1) + '</button>').join('') + '</div></div></div>' +
+      '<div class="panel"><span class="label">Variants</span>' +
+      '<div class="setrow"><div class="grow"><b>Extra roles &amp; events</b><span>3 more roles and 3 more events; 2 events per player.</span></div>' + swc('extra', s.extra) + '</div>' +
+      '<div class="setrow"><div class="grow"><b>Legendary level</b><span>A 4th difficulty: 7 Epidemic cards.</span></div>' + swc('legendary', s.legendary) + '</div></div>' +
       '<div class="panel"><div class="setrow"><div class="grow"><b>Rules</b><span>The whole game on one page.</span></div><button class="btn small" data-sx="rules">Rules</button></div>' +
       '<div class="setrow"><div class="grow"><b>Guided game</b><span>Play the first game again with tips.</span></div><button class="btn small" data-sx="tour">Start</button></div>' +
       '<div class="setrow"><div class="grow"><b>My stats</b><span>Wins, rating, achievements and the Daily game.</span></div><button class="btn small" data-sx="stats">Open</button></div></div>' +
@@ -1717,7 +1760,11 @@
   }
   vSet.addEventListener('change', e => {
     const t = e.target;
-    if (t.dataset.sw) { store.settings[t.dataset.sw] = t.checked; save(); }
+    if (t.dataset.sw) {
+      store.settings[t.dataset.sw] = t.checked;
+      if (t.dataset.sw === 'legendary' && !t.checked && store.settings.epidemics === 7) store.settings.epidemics = 6;
+      save(); vPlay._h = null;
+    }
     if (t.id === 's-open') { store.settings.openHands = t.value; save(); }
     if (t.id === 's-name') { store.settings.name = t.value.trim().slice(0, 20); save(); }
   });

@@ -148,6 +148,10 @@
     { id: 50, key: 'grant', name: 'Government Grant', text: 'Add a research station to any city. No city card needed.' },
     { id: 51, key: 'quiet', name: 'One Quiet Night', text: 'Skip the next Infect Cities step.' },
     { id: 52, key: 'resilient', name: 'Resilient Population', text: 'Remove one card in the infection discard pile from the game.' },
+    // "Extra roles & events" option (expansion-style rules, our own names): only in games that turn it on
+    { id: 53, key: 'shift', name: 'Extra Shift', extra: true, text: 'The player whose turn it is gets 2 more actions this turn.' },
+    { id: 54, key: 'remote', name: 'Remote Care', extra: true, text: 'Remove any 2 cubes from the board.' },
+    { id: 55, key: 'ban', name: 'Travel Ban', extra: true, text: 'Until your next turn starts, each Infect step flips only 1 card.' },
   ];
   const EPIDEMIC = 60;
   const EV = {};
@@ -168,7 +172,16 @@
       text: 'When sharing, you may give any city card, not just the one for your city.' },
     { key: 'scientist', name: 'Scientist', color: '#e8e8ee',
       text: 'You need only 4 cards of the same colour to discover a cure.' },
+    // "Extra roles & events" option only
+    { key: 'veteran', name: 'Veteran', color: '#c9b45a', extra: true,
+      text: 'You get 5 actions each turn instead of 4.' },
+    { key: 'responder', name: 'Responder', color: '#e06a8a', extra: true,
+      text: 'When you enter a city with 2 or more cubes of one colour, remove 1 cube of that colour.' },
+    { key: 'analyst', name: 'Analyst', color: '#8f9cf0', extra: true,
+      text: 'Once in your turn, take any city card from a player in your city. It costs no action.' },
   ];
+  const BASE_ROLES = ROLES.map((r, i) => i).filter(i => !ROLES[i].extra);
+  const BASE_EVENTS = EVENTS.filter(e => !e.extra).map(e => e.id);
   const ROLE_IDX = {};
   ROLES.forEach((r, i) => { ROLE_IDX[r.key] = i; });
 
@@ -182,6 +195,7 @@
     { key: 'intro', name: 'Introductory', epidemics: 4 },
     { key: 'standard', name: 'Standard', epidemics: 5 },
     { key: 'heroic', name: 'Heroic', epidemics: 6 },
+    { key: 'legendary', name: 'Legendary', epidemics: 7 }, // variant (Settings), off by default
   ];
 
   function cardName(id) {
@@ -190,8 +204,8 @@
     return CITIES[id].name;
   }
   const isCity = id => id >= 0 && id < 48;
-  const isEvent = id => id >= 48 && id <= 52;
+  const isEvent = id => id >= 48 && id < 48 + EVENTS.length;
 
-  return { COLORS, COLOR_NAMES, CITIES, IDX, LINKS, WRAP, N, ATLANTA, DIST, EVENTS, EV, EPIDEMIC, ROLES, ROLE_IDX,
+  return { COLORS, COLOR_NAMES, CITIES, IDX, LINKS, WRAP, N, ATLANTA, DIST, EVENTS, EV, EPIDEMIC, ROLES, ROLE_IDX, BASE_ROLES, BASE_EVENTS,
     RATE_TRACK, MAX_OUTBREAKS, CUBES_PER_COLOR, MAX_STATIONS, HAND_LIMIT, DEAL, LEVELS, cardName, isCity, isEvent };
 });

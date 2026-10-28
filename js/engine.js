@@ -45,11 +45,13 @@
   }
 
   // ---------------------------------------------------------------- setup
-  // o = {players 2-4, epidemics 4|5|6, seed, roles: [role index or -1], names, human: [bool], eventPause}
+  // o = {players 2-4, epidemics 4|5|6 (7 = Legendary variant), seed, roles: [role index or -1], names, human: [bool], eventPause,
+  //      extra: true = "Extra roles & events" (3 more roles; 2 events per player drawn from all 8, the expansion's rule)}
   function newGame(o) {
     o = o || {};
     const n = Math.max(2, Math.min(4, o.players | 0 || 2));
-    const E = [4, 5, 6].includes(o.epidemics) ? o.epidemics : 5;
+    const E = [4, 5, 6, 7].includes(o.epidemics) ? o.epidemics : 5;
+    const xo = !!o.extra;
     const s = {
       v: 1, rng: (o.seed >>> 0) || 1, n, epidemics: E,
       roles: [], names: [], human: [],
@@ -62,12 +64,14 @@
       eventPause: o.eventPause !== false, log: [], hist: [],
       open: typeof o.openHands === 'boolean' ? o.openHands : E === 4, // rulebook: face up only in the Introductory game
     };
+    if (xo) { s.extra = true; s.ban = -1; s.grabbed = false; }
     // roles: chosen ones first, the rest drawn at random without repeats
+    const allowed = xo ? ROLES.map((r, i) => i) : D.BASE_ROLES;
     const want = (o.roles || []).slice(0, n);
-    const pool = shuffle(s, ROLES.map((r, i) => i).filter(i => !want.includes(i)));
+    const pool = shuffle(s, allowed.filter(i => !want.includes(i)));
     for (let p = 0; p < n; p++) {
       const r = want[p];
-      s.roles.push(Number.isInteger(r) && r >= 0 && r < ROLES.length && !s.roles.includes(r) ? r : pool.shift());
+      s.roles.push(Number.isInteger(r) && allowed.includes(r) && !s.roles.includes(r) ? r : pool.shift());
       s.names.push(String((o.names && o.names[p]) || 'Player ' + (p + 1)).slice(0, 24));
       s.human.push(!!(o.human && o.human[p]));
     }
@@ -81,7 +85,8 @@
     }
     delete s.setup;
     // player deck: 48 cities + 5 events, deal, then E piles each with one Epidemic (bigger piles on top)
-    const cards = shuffle(s, CITIES.map(c => c.i).concat(EVENTS.map(e => e.id)));
+    const events = xo ? shuffle(s, EVENTS.map(e => e.id)).slice(0, 2 * n) : D.BASE_EVENTS;
+    const cards = shuffle(s, CITIES.map(c => c.i).concat(events));
     for (let p = 0; p < n; p++) s.hands.push(cards.splice(cards.length - DEAL[n], DEAL[n]));
     const R = cards.length, base = Math.floor(R / E), extra = R % E;
     const piles = [];
@@ -98,6 +103,7 @@
     delete s._bp;
     s.cur = best < 0 ? 0 : best;
     s.first = s.cur;
+    s.left = actionsFor(s, s.cur);
     log(s, 'First player: ' + s.names[s.cur] + ' (biggest city in hand).');
     s.hist.push(snapStats(s));
     return s;
@@ -164,7 +170,18 @@
     const c = s.pawns[m];
     for (let col = 0; col < 4; col++) if (s.cured[col] && s.cubes[c * 4 + col]) removeCubes(s, c, col, 3);
   }
-  function movePawn(s, who, to) { s.pawns[who] = to; if (roleKey(s, who) === 'medic') medicSweep(s); }
+  function movePawn(s, who, to) {
+    s.pawns[who] = to;
+    const k = roleKey(s, who);
+    if (k === 'medic') medicSweep(s);
+    else if (k === 'responder') {
+      // entering a city with 2+ cubes of a colour removes 1 of them
+      for (let col = 0; col < 4; col++) if (s.cubes[to * 4 + col] >= 2) removeCubes(s, to, col, 1);
+    }
+  }
+  const actionsFor = (s, p) => (roleKey(s, p) === 'veteran' ? 5 : 4);
+  // infection cards flipped in the next Infect step (Travel Ban: 1 until the player who played it starts a turn)
+  const infectRate = s => (s.ban >= 0 ? 1 : RATE_TRACK[s.rate]);
 
   // ---------------------------------------------------------------- whose move
   const holdsEvent = (s, p) => s.hands[p].some(isEvent) || (roleKey(s, p) === 'planner' && s.cp >= 0);
@@ -227,7 +244,7 @@
         if (windowSeats(s).length || holdsEvent(s, s.cur)) { s.phase = 'window'; return; }
       } else if (st === 'infect') {
         if (s.quiet) { s.quiet = false; log(s, 'One Quiet Night: no infections.'); continue; }
-        const r = RATE_TRACK[s.rate];
+        const r = infectRate(s);
         for (let i = 0; i < r && !s.over && s.ideck.length; i++) {
           const c = drawTop(s);
           infect(s, c, CITIES[c].color, 1, null);
@@ -235,7 +252,8 @@
           s.lastInf = (s.lastInf || []).concat([c]);
         }
       } else if (st === 'next') {
-        s.cur = (s.cur + 1) % s.n; s.left = 4; s.opsUsed = false; s.turn++;
+        s.cur = (s.cur + 1) % s.n; s.left = actionsFor(s, s.cur); s.opsUsed = false; s.turn++;
+        if (s.extra) { s.grabbed = false; if (s.ban === s.cur) { s.ban = -1; log(s, 'Travel Ban ends.'); } }
         s.phase = 'actions'; s.passed = [];
         s.hist = s.hist.concat([snapStats(s)]);
       }
@@ -320,6 +338,9 @@
       }
     }
     if (key === 'planner' && s.cp < 0) for (const c of s.pdisc) if (isEvent(c)) out.push({ t: 'cptake', card: c });
+    if (key === 'analyst' && !s.grabbed) {
+      for (let q = 0; q < s.n; q++) if (q !== p && s.pawns[q] === here) for (const c of s.hands[q]) if (isCity(c)) out.push({ t: 'grab', from: q, card: c });
+    }
     out.push({ t: 'end' });
     return out;
   }
@@ -394,6 +415,11 @@
         if (key !== 'planner' || s.cp >= 0 || !isEvent(a.card) || !s.pdisc.includes(a.card)) bad();
         s.pdisc.splice(s.pdisc.indexOf(a.card), 1); s.cp = a.card; break;
       }
+      case 'grab': { // Analyst: once a turn, take any city card from a player in the same city, free
+        if (key !== 'analyst' || s.grabbed || !int(a.from, 0, s.n - 1) || a.from === p || s.pawns[a.from] !== here || !isCity(a.card)) bad('Not now');
+        takeCard(s.hands[a.from], a.card); hand.push(a.card);
+        s.grabbed = true; s.left++; receiver = p; break;
+      }
       case 'end': s.left = 1; break;
       default: bad('Unknown move');
     }
@@ -419,6 +445,7 @@
       case 'give': return nm + ' gave ' + cname(a.card) + ' to ' + s.names[a.to] + '.';
       case 'take': return nm + ' took ' + cname(a.card) + ' from ' + s.names[a.from] + '.';
       case 'cptake': return nm + ' kept ' + D.cardName(a.card) + '.';
+      case 'grab': return nm + ' took ' + cname(a.card) + ' from ' + s.names[a.from] + ' (free).';
       default: return nm + ' acted.';
     }
   }
@@ -439,6 +466,15 @@
     }
     if (e === 'resilient' && !s.idisc.includes(a.city)) bad('Pick a card in the infection discard pile');
     if (e === 'forecast' && !s.ideck.length) bad('The infection deck is empty');
+    if (e === 'shift' && s.phase !== 'actions') bad('Play it during a turn’s actions');
+    if (e === 'remote') {
+      const left = s.cubes.slice();
+      if (!Array.isArray(a.cubes) || a.cubes.length < 1 || a.cubes.length > 2) bad('Pick 1 or 2 cubes');
+      for (const x of a.cubes) {
+        if (!Array.isArray(x) || !int(x[0], 0, N - 1) || !int(x[1], 0, 3) || left[x[0] * 4 + x[1]] <= 0) bad('Pick cubes on the board');
+        left[x[0] * 4 + x[1]]--;
+      }
+    }
     if (s.hands[seat].includes(card)) { takeCard(s.hands[seat], card); s.pdisc.push(card); }
     else { s.cp = -1; s.premoved.push(card); }
     const nm = s.names[seat];
@@ -456,7 +492,11 @@
       s.pend = { seat, cards: top, prev: s.phase, prevPend: s.pend };
       s.phase = 'forecast';
       log(s, nm + ' played Forecast.');
-    }
+    } else if (e === 'shift') { s.left += 2; log(s, nm + ' played Extra Shift: 2 more actions.'); }
+    else if (e === 'remote') {
+      for (const x of a.cubes) removeCubes(s, x[0], x[1], 1);
+      log(s, nm + ' played Remote Care (' + a.cubes.map(x => cname(x[0])).join(', ') + ').');
+    } else if (e === 'ban') { s.ban = seat; log(s, nm + ' played Travel Ban: 1 infection card per step until their next turn.'); }
     // a hand that was over the limit may now be fine
     if (s.phase === 'discard' && s.hands[s.pend.seat].length <= HAND_LIMIT) finishDiscard(s);
   }
@@ -547,5 +587,5 @@
   }
 
   return { newGame, apply, toAct, legalActions, publicView, privateView, view, clone, rnd, shuffle, roleKey, seatOf, holds, holdsEvent, isProtected,
-    needFor, canPlayEventNow, doAction, endActions, snapStats };
+    needFor, canPlayEventNow, doAction, endActions, snapStats, actionsFor, infectRate };
 });

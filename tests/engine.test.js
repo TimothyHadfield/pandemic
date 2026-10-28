@@ -49,8 +49,8 @@ test('card populations: Jakarta biggest, Essen smallest', () => {
   assert.equal(D.CITIES[I['Chicago']].pop, D.CITIES[I['Lima']].pop); // the one tie on the cards
 });
 test('roles, events and tracks', () => {
-  assert.equal(D.ROLES.length, 7);
-  assert.equal(D.EVENTS.length, 5);
+  assert.equal(D.ROLES.filter(r => !r.extra).length, 7); // (+3 for the "Extra roles & events" option: tests/extras.test.js)
+  assert.equal(D.EVENTS.filter(e => !e.extra).length, 5);
   assert.deepEqual(D.RATE_TRACK, [2, 2, 2, 3, 3, 4, 4]);
   assert.equal(D.MAX_OUTBREAKS, 8);
   assert.equal(D.CUBES_PER_COLOR, 24);

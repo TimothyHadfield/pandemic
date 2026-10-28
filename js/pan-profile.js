@@ -10,8 +10,9 @@
     { id: 'intro', name: 'Introductory', rating: 1200 },
     { id: 'standard', name: 'Standard', rating: 1350 },
     { id: 'heroic', name: 'Heroic', rating: 1480 },
+    { id: 'legendary', name: 'Legendary', rating: 1678 }, // variant (Settings); 2-player team won 10 of 100 measured games (2026-10-28) vs 63.5% on Introductory
   ];
-  const LEVEL_OF = { 4: 'intro', 5: 'standard', 6: 'heroic' };
+  const LEVEL_OF = { 4: 'intro', 5: 'standard', 6: 'heroic', 7: 'legendary' };
   // recompute the ratings from the measured win rates when they are there
   function rate(st) {
     try {
@@ -19,7 +20,7 @@
       const lg = x => Math.log10(x / (1 - x));
       const p4 = p(4);
       if (!p4) return;
-      [5, 6].forEach((ep, i) => { const q = p(ep); if (q) LEVELS[i + 1].rating = Math.round(1200 + 400 * (lg(p4) - lg(q))); });
+      [5, 6, 7].forEach((ep, i) => { const q = p(ep); if (q) LEVELS[i + 1].rating = Math.round(1200 + 400 * (lg(p4) - lg(q))); });
     } catch (e) { /* keep the defaults */ }
   }
   rate(root.PanStrength);
@@ -29,7 +30,7 @@
   const achievements = () => [
     { id: 'first', title: 'World saved', desc: 'Win a game', test: c => c.stats.wins >= 1 },
     { id: 'standard', title: 'Field team', desc: 'Win on Standard or Heroic', test: c => won(c) && (c.last.level === 'standard' || c.last.level === 'heroic' || ex(c).epidemics >= 5) },
-    { id: 'heroic', title: 'Heroic', desc: 'Win on Heroic (6 Epidemics)', test: c => won(c) && ex(c).epidemics === 6 },
+    { id: 'heroic', title: 'Heroic', desc: 'Win on Heroic (6 Epidemics)', test: c => won(c) && ex(c).epidemics >= 6 },
     { id: 'zero', title: 'Not one outbreak', desc: 'Win with zero outbreaks', test: c => won(c) && ex(c).outbreaks === 0 },
     { id: 'erad', title: 'Wiped out', desc: 'Win with a disease eradicated', test: c => won(c) && ex(c).erad >= 1 },
     { id: 'full', title: 'Full table', desc: 'Win with 4 players', test: c => won(c) && ex(c).players === 4 },
