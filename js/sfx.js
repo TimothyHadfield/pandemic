@@ -29,7 +29,8 @@
 
   // one logged move -> its sounds (the action itself; draws, infections and outbreaks come from lastDraw etc.)
   function actionSounds(m) {
-    if (/ played One Quiet Night\.$| played Forecast\.$/.test(m)) return [['cardFlip', 0]];
+    if (/ played One Quiet Night\.$| played Forecast\.$| played Extra Shift: | played Travel Ban: /.test(m)) return [['cardFlip', 0]];
+    if (/ played Remote Care \(/.test(m)) return [['cardFlip', 0], ['pop', 160]];
     if (/ removed .+ from the infection cards\.$/.test(m)) return [['cardFlip', 0], ['cardSlide', 150]];
     if (/ airlifted .+ to /.test(m)) return [['cardFlip', 0], ['whoosh', 150]];
     if (/: Government Grant station in /.test(m)) return [['cardFlip', 0], ['place', 180]];

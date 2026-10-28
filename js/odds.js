@@ -68,7 +68,7 @@
     return 0;
   }
 
-  /* v: {layers, idisc, iremoved, rate, piles, pdeckCount, epiDrawn, cubes?, quiet?}
+  /* v: {layers, idisc, iremoved, rate, piles, pdeckCount, epiDrawn, cubes?, quiet?, ban?}
      draws: player cards still to come before the infection step.
      Returns per city: draw = chance its infection card comes up in the next Infect step (including the
      Epidemic bottom card), epi = chance it is the Epidemic city, out = chance of an outbreak there
@@ -79,7 +79,8 @@
     const draw = new Float64Array(N), epiC = new Float64Array(N), out = new Float64Array(N);
     const cubes = c => (v.cubes ? v.cubes[c * 4 + CITIES[c].color] : 0);
     const safe = c => (prot && prot[c]) || (v.erad && v.erad[CITIES[c].color]);
-    const rateAt = k => RATE_TRACK[Math.min(RATE_TRACK.length - 1, v.rate + k)];
+    // Travel Ban (extra event): every Infect step flips 1 card while it lasts, Epidemics or not
+    const rateAt = k => (v.ban >= 0 ? 1 : RATE_TRACK[Math.min(RATE_TRACK.length - 1, v.rate + k)]);
     const quiet = !!v.quiet;
     const tmp = new Float64Array(N);
 

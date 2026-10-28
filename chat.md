@@ -13,6 +13,12 @@
 - **Edge pass (same day):** Tim: "Could you focus on making each game perfect especially in scenarios that the game doesn't expect or are a little weird." (full quote in progress.md). 51 weird scenarios listed and tested, 14 failed, all fixed (see progress.md Status "Edge pass"). Also a read-only reviewer on the table look: end box is now a card on the table, city names show at phone size, seats without boxes, fainter track panels. `_table` 1.0.1 copied. Verified: new `tests/edge.test.mjs` (31 checks, 9 failed on the old code) + new engine test (failed first); engine 24/24, online 6, over-prompts, zoom, fx all pass. Open: online leave with two people, a real finger's double tap.
 - **Later the same day:** merged the stronger computer teammates (route-based turn search; about 14% → 28% overall over 300 fixed games), rebuilt the win-rate table, and fixed the 11 QA findings (see progress.md Status).
 
+## 2026-10-28: wave 3 (builder)
+- **Asked:** Tim: "Go ahead and go through each project adding features or changing things that you think should be changed. This might be layout, cusomization, practical settings, links to youtube videos on strategies/how to play/variations, etc. Maybe it's just adding variations like common house rules ... Just make the games better." Brief: extra roles & events option, 1–3 variants, Learn videos, small 393/320 fixes.
+- **Built:** Settings → Variants: Extra roles & events (3 roles + 3 events, own names/icons, bots + Hint use them) and Legendary (7 Epidemics); rules sheet Variants + 4 YouTube videos; 320 px setup/action-row fixes; measure.js `--extra`.
+- **Verified:** engine 24/24, extras 13/13 (12 failed on old code), extras-ui WebKit 5 sizes all pass (19 failed on old code), online 6, over-prompts, zoom, fx, edge, visibility, improve pass, pwa-check 18/18; 900+900+300 measured games (numbers in progress.md); screenshots scratchpad `pan-shots/`.
+- **Open:** see progress.md NOT verified (Wave 3 line).
+
 ## 2026-10-21: visibility pass (builder)
 - **Asked:** Tim: "for a lot of the games the cards or board layout is too small to easily see what's going on. ... Consider parts of the board that are dense in what's happening and if the user can reasonably see it." (full quote in progress.md).
 - **Built:** phone board edge to edge with no sea band, landscape hand under the board, 10 px name floor with names clear of pawns/stations/panels, tap-to-magnify for crowded spots on phones (js/art.js, index.html).

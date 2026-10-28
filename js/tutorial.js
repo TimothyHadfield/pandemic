@@ -89,9 +89,21 @@
       { id: 'outbreak', title: 'Outbreaks', short: 'Outbreak', html: '<p>A city that would get a 4th cube of a colour outbreaks instead: the outbreak marker moves up and every connected city gets 1 cube of that colour. That can set off more outbreaks, but each city outbreaks at most once per chain.</p>' },
       { id: 'cure', title: 'Cures', short: 'Cures', html: '<p>A cured disease still spreads, but Treat removes all its cubes from a city. Once a cured disease has no cubes left on the board it is <b>eradicated</b>: its infection cards do nothing any more.</p>' },
       { id: 'roles', title: 'Roles', short: 'Roles', html: '<p>Each player has a role that bends one rule.</p><ul>' +
-        D.ROLES.map(r => '<li><b>' + r.name + '</b>: ' + r.text + '</li>').join('') + '</ul>' },
+        D.ROLES.filter(r => !r.extra).map(r => '<li><b>' + r.name + '</b>: ' + r.text + '</li>').join('') + '</ul>' },
       { id: 'events', title: 'Events', short: 'Events', html: '<p>Event cards are played at any time (here: when the game asks, before infections) and don’t cost an action.</p><ul>' +
-        D.EVENTS.map(e => '<li><b>' + e.name + '</b>: ' + e.text + '</li>').join('') + '</ul>' },
+        D.EVENTS.filter(e => !e.extra).map(e => '<li><b>' + e.name + '</b>: ' + e.text + '</li>').join('') + '</ul>' },
+      { id: 'variants', title: 'Variants', short: 'Variants', html: '<p>Off unless you turn them on in Settings.</p>' +
+        '<p><b>Extra roles &amp; events</b>: three more roles join the role pool, and the deck gets 2 events per player, drawn at random from all eight (the rule of the expansion this follows; our own names).</p><ul>' +
+        D.ROLES.filter(r => r.extra).map(r => '<li><b>' + r.name + '</b> (role): ' + r.text + '</li>').join('') +
+        D.EVENTS.filter(e => e.extra).map(e => '<li><b>' + e.name + '</b> (event): ' + e.text + '</li>').join('') + '</ul>' +
+        '<p><b>Legendary level</b>: 7 Epidemic cards, so 7 piles. Harder than Heroic.</p>' +
+        '<p><b>Hands</b>: the rulebook keeps hands face up only in the Introductory game; many groups always play open. Settings → Hands.</p>' },
+      { id: 'videos', title: 'Learn by video', short: 'Videos', html: '<p>Real videos on YouTube (opens a new tab).</p><ul class="vids">' +
+        [['ojkScPkdgsk', 'Pandemic - How To Play', 'Watch It Played'],
+          ['ytK1zDPPDhw', 'Pandemic on TableTop, episode 14 (a full game)', 'Geek & Sundry'],
+          ['DLmBx7Eznsc', 'Pandemic Strategy Guide / Top 10 Tips', 'Legendary Tactics'],
+          ['OAF-VtnveRs', 'How to Play: Pandemic On the Brink expansion (more roles, events, challenges)', 'The Hobbyist']]
+          .map(x => '<li><a href="https://www.youtube.com/watch?v=' + x[0] + '" target="_blank" rel="noopener">' + x[1] + '</a> · ' + x[2].replace('&', '&amp;') + '</li>').join('') + '</ul>' },
       { id: 'app', title: 'In this app', short: 'App', html: '<p><b>Hint</b> shows the planner’s best 4 actions. <b>Undo</b> takes back an action in your own turn (not after cards are drawn). A game with Hint or Undo counts as “with help” in My stats, so it doesn’t change your rating.</p>' +
         '<p>The <b>Daily game</b> is the same deal for everyone that day: 2 players, Standard. It has no Undo.</p>' },
     ],

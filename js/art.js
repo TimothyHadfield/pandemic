@@ -31,6 +31,9 @@
     quarantine: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z',
     researcher: 'M4 5h7a3 3 0 0 1 3 3v12a2 2 0 0 0-2-2H4z M20 5h-6 M20 5v13h-6',
     scientist: 'M9 3h6 M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3',
+    veteran: 'M5 11l7-5 7 5 M5 17l7-5 7 5', // rank chevrons
+    responder: 'M4 8l8-4 8 4v8l-8 4-8-4z M8.5 12h7', // a cube, minus one
+    analyst: 'M10 4a6 6 0 1 0 0 12a6 6 0 1 0 0-12z M14.5 14.5L20 20', // magnifier
   };
   function roleIcon(roleIdx, size) {
     const r = D.ROLES[roleIdx];
@@ -43,6 +46,9 @@
     50: 'M4 20V10l8-6 8 6v10z M9 14h6 M12 11v6', // grant: station plus
     51: 'M20 14A8 8 0 1 1 10 4a6 6 0 0 0 10 10z', // quiet night: moon
     52: 'M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 11c0 5.5-7 10-7 10z', // resilient: heart
+    53: 'M12 4a8 8 0 1 0 0 16a8 8 0 1 0 0-16z M12 8v4l3 2', // extra shift: clock
+    54: 'M12 3v4 M12 17v4 M3 12h4 M17 12h4 M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6z', // remote care: crosshair
+    55: 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z M5.6 5.6l12.8 12.8', // travel ban: no-entry sign
   };
   // the world outline once, as a picture (an image is painted once and reused; a live outline in every card
   // made each frame of the board's zoom glide repaint dozens of coastlines), so every city card can show where its city is

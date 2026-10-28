@@ -11,13 +11,14 @@
     id: 'pandemic',
     minSeats: 2,
     maxSeats: 4,
-    // options: {epidemics: 4|5|6, roles: [role index or -1], openHands, eventPause}
+    // options: {epidemics: 4|5|6|7, roles: [role index or -1], openHands, eventPause, extra}
     setup(nSeats, options, rng, seats) {
       const o = options || {};
       const S = seats || [];
       return E.newGame({
         players: nSeats,
-        epidemics: [4, 5, 6].includes(o.epidemics) ? o.epidemics : 5,
+        epidemics: [4, 5, 6, 7].includes(o.epidemics) ? o.epidemics : 5,
+        extra: o.extra === true,
         seed: Math.floor(rng() * 4294967296) >>> 0,
         roles: Array.isArray(o.roles) ? o.roles.slice(0, nSeats) : [],
         names: S.map((x, i) => (x && x.name) || (x && x.kind === 'computer' ? 'Computer ' + (i + 1) : 'Player ' + (i + 1))),

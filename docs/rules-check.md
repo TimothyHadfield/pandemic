@@ -9,6 +9,7 @@ Every rule and number the engine uses, with where it comes from. Checked 2026-10
 - **[T]** GAIGResearch/TabletopGames, Pandemic module: https://github.com/GAIGResearch/TabletopGames
 - **[G]** GerryFudd/pandemic (board data): https://github.com/GerryFudd/pandemic
 - **[A]** boardgameanalysis.com, graph analysis of the Pandemic map (degrees per city)
+- **[OB]** Pandemic: On the Brink expansion rules (Legendary = 7 Epidemics; 2 events per player from the mixed pool), as commonly summarised (e.g. The Hobbyist's how-to video, youtube.com/watch?v=OAF-VtnveRs). Our variants follow its idea, with our own names
 
 Status: ✅ two or more sources agree · ☑️ one source, or our reading of it · ⚠️ open question (see the end)
 
@@ -86,6 +87,8 @@ Status: ✅ two or more sources agree · ☑️ one source, or our reading of it
 | Variant | Rule | Source |
 |---|---|---|
 | Difficulty | 4 / 5 / 6 Epidemics | R |
+| Legendary level (switch, off by default) | 7 Epidemics, 7 piles. The On the Brink expansion's top level (Legendary) | OB, ☑️ |
+| Extra roles & events (switch, off by default) | 3 more roles + 3 more events in our own names. Event count = 2 per player drawn at random from all 8 (the On the Brink rule for mixing in extra events). Roles: Veteran (5 actions, like the Generalist), Responder (enter a city with 2+ cubes of a colour: remove 1, our own), Analyst (once a turn take any city card from a player in your city, free; a softer Researcher-in-reverse, our own). Events: Extra Shift (2 more actions, like Borrowed Time), Remote Care (remove any 2 cubes, like Remote Treatment), Travel Ban (infection rate 1 until your next turn, like Infection Zone Ban / Commercial Travel Ban) | OB, ☑️ (our own variants, not exact copies) |
 | Open or hidden hands | Rulebook: hands are face up in Introductory games only. Groups often play open hands; the setting allows both | R |
 | Pause for events | Not a rule: a convenience that stops before infections when you hold an event | — |
 

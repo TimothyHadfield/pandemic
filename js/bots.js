@@ -12,19 +12,22 @@
 
   // ------------------------------------------------------------ context computed once per decision
   // weights (tuned by measuring win rates with tools/measure.js; PAN_W env overrides for tuning)
-  const W = { cured: 2200, cure: 1500, spare: 25, shareF: 0.3, shareD: 4, toStation: 70, cube: 10, soon: 4, out: 120, cardCity: 7, cardEvent: 16, station: 30, near: 6, limit: 25, grantMin: 40, width: 10, cap: 3000, look: 0.5, lookK: 8, lookW: 4, lookCap: 1500, oc: 300, supply: 6, tight: 300 };
+  const W = { cured: 2200, cure: 1500, spare: 25, shareF: 0.3, shareD: 4, toStation: 70, cube: 10, soon: 4, out: 120, cardCity: 7, cardEvent: 16, station: 30, near: 6, limit: 25, grantMin: 40, width: 10, cap: 3000, look: 0.5, lookK: 8, lookW: 4, lookCap: 1500, oc: 300, supply: 6, tight: 300,
+    remoteMin: 250, grabMin: 15, shiftMin: 100 }; // (extra roles & events option; shiftMin 300 left Extra Shift unplayed in 19 of 21 games, 100 plays it in 15 of 21 with the same wins, 60 games 2p Standard)
   const CUBE_W = [0, 0.6, 2.5, 8];
   if (typeof process !== 'undefined' && process.env && process.env.PAN_W) Object.assign(W, JSON.parse(process.env.PAN_W));
 
   function context(s) {
     const v = { layers: s.layers, idisc: s.idisc, iremoved: s.iremoved, rate: s.rate, piles: s.piles,
-      pdeckCount: s.pdeck ? s.pdeck.length : s.pdeckCount, epiDrawn: s.epiDrawn, cubes: s.cubes, erad: s.erad, quiet: s.quiet };
+      pdeckCount: s.pdeck ? s.pdeck.length : s.pdeckCount, epiDrawn: s.epiDrawn, cubes: s.cubes, erad: s.erad, quiet: s.quiet, ban: s.ban };
     const odds = O.infectionOdds(v, O.drawsAhead(s), null);
     // chance each city is hit before this player's next turn (one Infect step per player),
     // plus a share for being in the discard pile (back on top after an Epidemic)
     const struct = O.structure(v);
     const far = new Float64Array(N);
-    O.drawProbs(struct, RATE_TRACK[s.rate] * s.n, far, 1);
+    // (a Travel Ban flips 1 card per step until the player who played it starts a turn)
+    const banned = s.ban >= 0 ? ((s.ban - s.cur + s.n) % s.n || s.n) : 0;
+    O.drawProbs(struct, banned + RATE_TRACK[s.rate] * (s.n - Math.min(s.n, banned)), far, 1);
     const epiSoon = 1 - O.epidemicChances({ piles: s.piles, pdeckCount: v.pdeckCount, epiDrawn: s.epiDrawn, draws: 2 * s.n })[0];
     const soon = new Float64Array(N);
     const disc = new Set(s.idisc);
@@ -418,7 +421,7 @@
       for (const n of top) {
         if (n.s.over) { if (n.score > bestV) { bestV = n.score; bestNode = n; } continue; }
         const s2 = simClone(n.s);
-        s2.cur = (root.cur + 1) % root.n; s2.left = 4; s2.opsUsed = false;
+        s2.cur = (root.cur + 1) % root.n; s2.left = E.actionsFor(s2, s2.cur); s2.opsUsed = false; s2.grabbed = false;
         const ctx2 = Object.assign({}, ctx, { drawer: s2.cur });
         const inner = plan(s2, { width: W.lookW, cap: W.lookCap, ctx: ctx2, look: 0 });
         const val = n.score + look * (inner.score - inner.start);
@@ -473,6 +476,9 @@
       let risk = 0;
       for (let c = 0; c < N; c++) if (s.cubes[c * 4 + CITIES[c].color] === 3) risk += odds.draw[c];
       if (has(EV.quiet) && !s.quiet && (risk >= 0.5 || (s.pdeck ? s.pdeck.length : s.pdeckCount) <= 2 * s.n)) return { t: 'event', card: EV.quiet };
+      // extra events: Remote Care on the cubes that hurt most; Travel Ban when the rate is high and 3-cube cities are likely hit
+      if (has(EV.remote)) { const rc = bestRemote(s, ctx); if (rc) return rc; }
+      if (has(EV.ban) && !s.quiet && !(s.ban >= 0) && (RATE_TRACK[s.rate] >= 3 && risk >= 0.3 || risk >= 0.6)) return { t: 'event', card: EV.ban };
       if (has(EV.forecast) && risk >= 0.25 && !s.quiet) return { t: 'event', card: EV.forecast };
       void r;
       // Airlift a teammate who holds a full set onto a station, so they cure at the start of their turn
@@ -486,6 +492,54 @@
       }
     }
     return null;
+  }
+  // Remote Care: the 2 cubes whose removal helps the team most (null if not worth the card yet)
+  function bestRemote(s, ctx) {
+    const t = simClone(s);
+    const base = evaluate(t, ctx);
+    const picks = [];
+    for (let k = 0; k < 2; k++) {
+      let bw = -Infinity, bc = -1;
+      for (let i = 0; i < t.cubes.length; i++) {
+        if (!t.cubes[i]) continue;
+        t.cubes[i]--; t.supply[i & 3]++;
+        const w = evaluate(t, ctx);
+        t.cubes[i]++; t.supply[i & 3]--;
+        if (w > bw) { bw = w; bc = i; }
+      }
+      if (bc < 0) break;
+      t.cubes[bc]--; t.supply[bc & 3]++;
+      picks.push([bc >> 2, bc & 3]);
+    }
+    if (!picks.length || evaluate(t, ctx) - base < W.remoteMin) return null;
+    return { t: 'event', card: EV.remote, cubes: picks };
+  }
+  // Analyst: the free card from a teammate in the same city that helps most (null if none helps)
+  function bestGrab(s, p, ctx) {
+    if (E.roleKey(s, p) !== 'analyst' || s.grabbed) return null;
+    const here = s.pawns[p];
+    let best = evaluate(simClone(s), ctx) + W.grabMin, pick = null;
+    for (let q = 0; q < s.n; q++) {
+      if (q === p || s.pawns[q] !== here) continue;
+      for (const c of new Set(s.hands[q])) {
+        if (!isCity(c)) continue;
+        const t = simClone(s);
+        t.hands[q].splice(t.hands[q].indexOf(c), 1); t.hands[p].push(c);
+        const w = evaluate(t, ctx);
+        if (w > best) { best = w; pick = { t: 'grab', from: q, card: c }; }
+      }
+    }
+    return pick;
+  }
+  // Extra Shift: play it at the start of your own turn when 2 more actions are clearly worth it
+  function shiftNow(s, p, ctx, opts) {
+    if (!E.holds(s, p, EV.shift) || s.left !== E.actionsFor(s, p)) return null;
+    const o = Object.assign({ ctx }, opts);
+    const a = plan(s, o);
+    const t = E.clone(s); t.left += 2;
+    const b = plan(t, o);
+    const late = (s.pdeck ? s.pdeck.length : s.pdeckCount) <= 2 * s.n;
+    return b.score - a.score >= (late ? W.shiftMin / 4 : W.shiftMin) ? { t: 'event', card: EV.shift } : null;
   }
   function readyColor(s, p) {
     for (let col = 0; col < 4; col++) {
@@ -575,6 +629,10 @@
     if (s.phase === 'actions' && p === s.cur) {
       const help = cureHelp(s, p);
       if (help) return help;
+      const grab = bestGrab(s, p, ctx);
+      if (grab) return grab;
+      const shift = s.extra ? shiftNow(s, p, ctx, opts) : null;
+      if (shift) return shift;
       // Government Grant early in the turn when a station somewhere is clearly worth the card
       if (s.left === 4 && s.hands[p].includes(EV.grant) && s.stations.length < 6) {
         const g = bestGrant(s, p, ctx);
@@ -598,5 +656,12 @@
     return { t: 'pass' };
   }
 
-  return { plan, decide, evaluate, context, score, forecastOrder, pickDiscard };
+  // for the Hint: a free Analyst card or an Extra Shift worth doing before the turn's plan (null if none)
+  function preMove(s, p) {
+    if (s.phase !== 'actions' || s.cur !== p) return null;
+    const ctx = context(s);
+    return bestGrab(s, p, ctx) || (s.extra ? shiftNow(s, p, ctx, {}) : null);
+  }
+
+  return { plan, decide, evaluate, context, score, forecastOrder, pickDiscard, preMove, bestRemote, W };
 });
