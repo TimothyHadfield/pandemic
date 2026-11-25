@@ -216,7 +216,8 @@ try {
     const p2 = await ctx.newPage();
     await p2.goto(url); await p2.waitForSelector('#game');
     await p2.evaluate(([k, v]) => localStorage.setItem(k, v), [KEY, JSON.stringify({ game: { state: over, me: 0, checks: [] } })]);
-    await page.waitForTimeout(600);
+    // it ended while this tab watched: the table stays up for the finale (5 s), then the end card
+    await page.waitForSelector('.banner', { timeout: 8000 }).catch(() => {});
     check((await page.locator('.banner').count()) === 1, 'a second game ending on the same turn the same way shows its end card');
     await ctx.close();
   }

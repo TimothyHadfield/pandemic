@@ -223,6 +223,10 @@
   .pchip { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; border-radius: 10px; padding: 3px 7px 3px 4px; font-size: 12px; cursor: pointer;
     background: transparent; border: 1px solid transparent; transition: border-color .2s, box-shadow .2s; }
   .pchip.turn { border-color: var(--accent-warm); box-shadow: 0 0 0 1px rgba(240,179,84,.35), 0 0 16px rgba(240,179,84,.22); }
+  /* the team won: every role card glows gold */
+  .pchip.won .rc, .rc.won { box-shadow: 0 0 0 2px #f5d76e, 0 0 18px rgba(245,215,110,.75); animation: wonPulse 1.1s ease-in-out 4 alternate; }
+  @keyframes wonPulse { from { box-shadow: 0 0 0 2px #f5d76e, 0 0 8px rgba(245,215,110,.45); } to { box-shadow: 0 0 0 2px #f5d76e, 0 0 22px rgba(245,215,110,.9); } }
+  @media (prefers-reduced-motion: reduce) { .pchip.won .rc, .rc.won { animation: none; } }
   .pchip .rc { --card-w: 29px; }
   .pchip .rc-nm { display: none; }
   .pchip .sc { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
@@ -520,16 +524,16 @@
 <script src="js/table.js?v=2"></script>
 <script src="js/data.js?v=5"></script>
 <script src="js/map-data.js?v=1"></script>
-<script src="js/engine.js?v=5"></script>
+<script src="js/engine.js?v=6"></script>
 <script src="js/odds.js?v=4"></script>
 <script src="js/bots.js?v=5"></script>
 <script src="js/online-game.js?v=4"></script>
 <script src="js/strength-data.js?v=4"></script>
 <script src="js/sfx.js?v=3"></script>
 <script src="js/art.js?v=11"></script>
-<script src="js/pwa.js?v=17" data-version="17"></script>
+<script src="js/pwa.js?v=18" data-version="18"></script>
 <script src="js/pan-profile.js?v=2"></script>
 <script src="js/tutorial.js?v=3"></script>
-<script src="js/app.js?v=15"></script>
+<script src="js/app.js?v=16"></script>
 </body>
 </html>

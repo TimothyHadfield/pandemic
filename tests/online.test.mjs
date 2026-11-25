@@ -60,7 +60,8 @@ const clone = x => JSON.parse(JSON.stringify(x));
     }
     const pub = game.publicView(s);
     for (const k of ['rng', 'pdeck', 'ideck', 'queue', 'seed']) assert.ok(!(k in pub), 'public view has no ' + k);
-    pub.hands.forEach((h, j) => assert.deepEqual(h, [], 'seat ' + j + ' hand hidden'));
+    // hidden while the game runs; once it is over everyone's hand is shown
+    pub.hands.forEach((h, j) => assert.deepEqual(h, s.over ? s.hands[j] : [], 'seat ' + j + (s.over ? ' hand shown after the game' : ' hand hidden')));
     for (let j = 0; j < 3; j++) {
       const pv = game.privateView(s, j);
       assert.deepEqual(Object.keys(pv), ['hand']);

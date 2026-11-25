@@ -473,6 +473,11 @@
   // ---------------------------------------------------------------- the game screen
   let fxQuiet = false;
   let mapApi = null, mapBox = null, lastSeen = null, botTimer = null, flipTimer = null, flipKey = null;
+  // The ending is a moment: a game that ends while you watch keeps the table up (the last flips, the
+  // team's cards glowing on a win) for a few seconds before the end card. A reload goes straight to it.
+  const FINALE_MS = 5000, FINALE_FAST = 2500;
+  let finale = null;
+  const ending = () => !!(finale && Date.now() < finale.until);
   function ensureMap() {
     if (mapBox) return;
     mapBox = document.createElement('div');
@@ -542,6 +547,12 @@
     const fk = v.turn + ':' + v.log.length + ':' + v.phase;
     if (lastSeen && fk !== flipKey && ((v.lastInf && v.lastInf.length) || (v.lastEpi && v.lastEpi.length) || (v.lastDraw && v.lastDraw.length))) showFlips(v);
     flipKey = fk;
+    if (lastSeen && !lastSeen.over && v.over) {
+      const ms = flipStep() < 140 ? FINALE_FAST : FINALE_MS, t = table;
+      finale = { until: Date.now() + ms };
+      setTimeout(() => { if (table === t && ui.tab === 'play') renderGame(); }, ms + 20);
+    } else if (!v.over) finale = null;
+    document.body.classList.toggle('finale', !!v.over && ending());
     lastSeen = v;
     dropStalePrompts(v);
     const myTurn = toAct.includes(ME);
@@ -562,7 +573,7 @@
     renderHand(v, toAct);
     renderActs(v, toAct);
     renderSide(v, odds);
-    if (v.over) showEnd(v);
+    if (v.over && !ending()) showEnd(v);
     if (fx) runFx(fx.items);
     // forecast: open the sheet for whoever played it
     if (v.phase === 'forecast' && v.pend && v.pend.seat === ME && !$('#sheet')) forecastSheet(v);
@@ -760,7 +771,7 @@
         return c < 0 ? A.backHtml('p', { style: st }) : A.cardHtml(c, { tag: 'span', cls: 'mini', style: st });
       }).join('');
       const label = v.human[p] ? esc(v.names[p]) : others.length > 1 ? esc(shortRole(r)) : esc(v.names[p]) + ' <span class="muted">· ' + esc(shortRole(r)) + '</span>';
-      return '<div class="pchip seat' + (p === v.cur && !v.over ? ' turn' : '') + '" data-player="' + p + '" style="--n:' + others.length + '">' + A.roleCardHtml(r) +
+      return '<div class="pchip seat' + (p === v.cur && !v.over ? ' turn' : '') + (v.over && v.over.win ? ' won' : '') + '" data-player="' + p + '" style="--n:' + others.length + '">' + A.roleCardHtml(r) +
         '<span class="sc"><span class="snm"><span class="nmx">' + label + '</span><b>' + v.handN[p] + '</b></span><span class="sh">' + hand + '</span></span></div>';
     }).join('');
     put($('#g-players'), html);
@@ -775,7 +786,7 @@
     const ids = sorted.concat(extra);
     const me = $('#g-me');
     me.dataset.player = ME;
-    put(me, A.roleCardHtml(v.roles[ME], { cls: v.cur === ME && !v.over ? 'turn' : '' }));
+    put(me, A.roleCardHtml(v.roles[ME], { cls: v.cur === ME && !v.over ? 'turn' : v.over && v.over.win ? 'won' : '' }));
     const fanEl = $('#g-fan');
     const key = ids.join(',') + '|' + ui.card + '|' + ui.discardPick + '|' + extra.length;
     if (fanEl._k === key) return;

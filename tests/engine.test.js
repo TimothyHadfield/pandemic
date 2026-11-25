@@ -391,6 +391,15 @@ test('public view hides deck orders and hidden hands; private view only your own
   const o = G.game.setup(2, { epidemics: 4 }, rng, [{ kind: 'human' }, { kind: 'human' }]);
   assert.deepEqual(G.game.publicView(o).hands, o.hands);
 });
+test('game over: everyone\'s hand is shown (hidden-hand game)', () => {
+  let r = 9;
+  const rng = () => { r = (r * 16807) % 2147483647; return r / 2147483647; };
+  const s = G.game.setup(2, { epidemics: 5 }, rng, [{ kind: 'human', name: 'A' }, { kind: 'human', name: 'B' }]);
+  assert.deepEqual(G.game.publicView(s).hands[0], []);
+  s.over = { win: false, why: 'outbreaks' };
+  assert.deepEqual(G.game.publicView(s).hands, s.hands);
+  assert.ok(s.hands[0].length > 0 && s.hands[1].length > 0);
+});
 
 // ------------------------------------------------------------------ odds
 test('epidemic chances: exact small cases', () => {

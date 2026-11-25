@@ -571,7 +571,8 @@
     o.handN = s.hands.map(h => h.length);
     const v = JSON.parse(JSON.stringify(o));
     // (the Forecast cards stay public: players may tell each other what they saw)
-    if (!s.open) v.hands = s.hands.map((h, p) => (s.human[p] ? [] : h.slice()));
+    // people's hands stay hidden (rulebook) until the game is over, then everyone's is shown
+    if (!s.open && !s.over) v.hands = s.hands.map((h, p) => (s.human[p] ? [] : h.slice()));
     return v;
   }
   function privateView(s, seat) {
