@@ -772,7 +772,7 @@
       }).join('');
       const label = v.human[p] ? esc(v.names[p]) : others.length > 1 ? esc(shortRole(r)) : esc(v.names[p]) + ' <span class="muted">· ' + esc(shortRole(r)) + '</span>';
       return '<div class="pchip seat' + (p === v.cur && !v.over ? ' turn' : '') + (v.over && v.over.win ? ' won' : '') + '" data-player="' + p + '" style="--n:' + others.length + '">' + A.roleCardHtml(r) +
-        '<span class="sc"><span class="snm"><span class="nmx">' + label + '</span><b>' + v.handN[p] + '</b></span><span class="sh">' + hand + '</span></span></div>';
+        '<span class="sc"><span class="snm"><span class="nmx">' + label + '</span><b>' + v.handN[p] + '</b></span><span class="sh" style="--k:' + n + '">' + hand + '</span></span></div>';
     }).join('');
     put($('#g-players'), html);
   }

@@ -31,3 +31,9 @@
 - **Built:** whole-chip risk strip + "All N" odds sheet; guided game + rules sheet; Undo; replay; My stats / 10 achievements / Daily; offline install; Epidemic/cure plates + outbreak shock ring; teammates look one turn ahead (`look 0.5, lookK 8` in js/bots.js), strength table rebuilt. One read-only reviewer: 7 smaller findings, all fixed.
 - **Verified:** `tests/improve.test.mjs` (WebKit; risk strip failed 6 checks on the old code, tutorial-quit check failed before its fix), engine 24/24, edge, fx, over-prompts, zoom, visibility, online 6, pwa-check 18/18; screenshots at 393, 320, 659×393, 820, 1280, 1440 (scratchpad `improve/pandemic/`).
 - **Open:** progress.md NOT verified (improve line).
+
+## 2026-11-27: fit pass (builder, manager's all-games brief)
+- **Asked:** Tim: "I feel like spacing, sizing, and making sure the user can actually see the full screen and everything are a really common problem. Could you go through every game in the cite and make sure that they all are good in theat aspect specifically?" Scope: size/space only, no restyle.
+- **Built (CSS in index.html + one `--k` card count in app.js renderPlayers):** your card names never below 10 px (320 and phone-on-its-side were 7.8 px; side cards 50→56 px, 320 cards 50→52 px), 3-line names no longer clipped; phone action row shares its width (a long label wraps) so End turn is never off the edge (cut at 393 and 320 before); laptop teammates' cards 42→50 px with 10 px names (were 7.4 px) and count-based overlap (they spread when few, overlap only as needed).
+- **Verified:** new `tests/fit-ui.mjs` (WebKit, crowded late 4-player game, 5 sizes): 10 fails on the old code, all pass now; engine 25/25, extras 13/13, online 6, over-prompts, zoom, fx, edge, extras-ui, improve, visibility (WebKit + Chromium), pwa-check 18/18. Screenshots scratchpad `pan-fit/before|after`.
+- **Open:** progress.md NOT verified (fit line).
